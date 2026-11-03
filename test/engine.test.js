@@ -198,9 +198,9 @@ test('changes file lists every fix and merge', () => {
 });
 
 test('cells are never treated as code', () => {
-  const p = parseCSV('First Name,Email\n<img src=x onerror=alert(1)>,a@b.io\n');
+  const p = parseCSV('First Name,Company,Email\nAva,<img src=x onerror=alert(1)>,a@b.io\n');
   const m = buildManifest(p, guessColumns(p.headers));
-  const g = checkCampaign(m, [{ subject: 'hi', body: 'Hi {{first_name}}, worth a chat?' }]);
+  const g = checkCampaign(m, [{ subject: 'hi', body: 'Hi {{first_name}} at {{company}}, worth a chat?' }]);
   assert.match(g.results[0].rendered[0].body, /<img src=x/i); // plain text, shown with textContent
 });
 
@@ -232,4 +232,26 @@ test('tower: a sign-off does not hide the ask', () => {
 test('tower: a misspelled tag suggests the right one', () => {
   const t = towerCheck({ subject: '', body: 'Hi {{frist_name}}, worth a chat?' }, 0, { manifest });
   assert.match(t.calls.find(c => c.rule === 'unknown_tag').line, /Did you mean \{\{first_name\}\}/);
+});
+
+test('single-character names in scripts without initials are real names', () => {
+  const p = parseCSV('First Name,Email\n雷,lei@x.io\nJ.,j@x.io\nK,k@x.io\n');
+  const m = buildManifest(p, guessColumns(p.headers));
+  assert.deepEqual(m.leads.map(l => l.cells[0]), ['雷']);
+  assert.equal(m.lostFound.length, 2);
+});
+
+test('markup or digits in a first name hold the row', () => {
+  const p = parseCSV('First Name,Email\n<script>alert(1)</script>,x@x.io\nR2D2,r@x.io\nAnne-Marie,a@x.io\n');
+  const m = buildManifest(p, guessColumns(p.headers));
+  assert.deepEqual(m.leads.map(l => l.cells[0]), ['Anne-Marie']);
+  assert.match(m.lostFound[0].reasons[0], /doesn't look like a name/);
+});
+
+test('a header-only file has nobody to board and nothing breaks', () => {
+  const p = parseCSV('First Name,Email\n');
+  const m = buildManifest(p, guessColumns(p.headers));
+  const g = checkCampaign(m, [{ subject: 'hi', body: 'Hi {{first_name}}' }]);
+  assert.equal(g.counts.leads, 0);
+  assert.equal(g.counts.emails, 0);
 });

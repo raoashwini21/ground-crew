@@ -142,7 +142,7 @@ function stage(scene, station, { focus = 0.5, tall = false, inFrame = [], over =
 
 // ---------- 00 Check-in ----------
 function viewCheckin() {
-  const input = h('input', { type: 'file', accept: '.csv,text/csv,text/plain', hidden: true, onchange: e => e.target.files[0] && loadFile(e.target.files[0]) });
+  const input = h('input', { type: 'file', accept: '.csv,.tsv,.txt,text/csv,text/plain,text/tab-separated-values', hidden: true, onchange: e => e.target.files[0] && loadFile(e.target.files[0]) });
   const ticket = h('div', {
     class: 'ticket', role: 'button', tabindex: '0',
     onclick: () => input.click(),
@@ -172,6 +172,9 @@ function viewCheckin() {
       over: [glass, crew('marshal-hero', 'right full'),
         say('MARSHAL', ['Welcome aboard! ', h('b', null, 'Nothing takes off until it’s checked.')], { right: '27cqw', bottom: '58%' })],
     }),
+    h('div', { class: 'mobile-intro' },
+      h('h1', null, 'You built it. Now get it out there.'),
+      h('p', null, 'Ground Crew checks every email, for every lead, before your campaign takes off. On your laptop, with the Wi-Fi off.')),
     ticket,
     h('div', { class: 'row demo-row' }, h('span', { class: 'muted small' }, 'No list handy?'),
       h('button', { class: 'btn small', onclick: loadDemo }, '✈ Try it with Skyline Leads (3,000 made-up leads)')),
@@ -305,7 +308,7 @@ function viewBaggage() {
   const fixedLeads = m.leads.filter(l => changesByLead.has(l.id));
   const tabs = [
     ['boarding', `Manifest ${fmt(m.leads.length)}`],
-    ['fixed', `Fixed ${fmt(fixedLeads.length)}`],
+    ['fixed', `Fixed ${fmt(m.changes.length)}`],
     ['twins', `Twins ${fmt(m.twins.length)}`],
     ['lost', `Lost & Found ${fmt(m.lostFound.length)}`],
   ];
@@ -384,6 +387,21 @@ function matches(cells) {
 function baggageTable(m, changesByLead, fixedLeads) {
   const tab = state.baggageTab;
   const leadById = new Map([...m.leads, ...m.lostFound.map(x => x.lead)].map(l => [l.id, l]));
+  if (tab === 'fixed') {
+    // Each change on its own line, before and after, so it reads at a glance.
+    const list = m.changes.filter(c => matches([c.before, c.after, c.column, nameOf(m, leadById.get(c.leadId) || { cells: [] })]));
+    if (!list.length) return h('div', { class: 'empty' }, 'Nothing needed fixing.');
+    return h('div', null, h('div', { class: 'tablewrap' }, h('table', null,
+      h('thead', null, h('tr', null, h('th', null, 'Row'), h('th', null, 'Passenger'), h('th', null, 'Field'), h('th', null, 'Before'), h('th', null, ''), h('th', null, 'After'), h('th', null, 'Why'))),
+      h('tbody', null, list.slice(0, state.shown).map(c => h('tr', null,
+        h('td', { class: 'rownum' }, c.row),
+        h('td', null, nameOf(m, leadById.get(c.leadId) || { cells: [] })),
+        h('td', { class: 'muted' }, c.column),
+        h('td', { class: 'before', title: c.before }, c.before === '' ? '(blank)' : c.before),
+        h('td', { class: 'muted' }, '→'),
+        h('td', { class: 'after', title: c.after }, c.after === '' ? '(blank)' : c.after),
+        h('td', { class: 'muted' }, c.why)))))), more(list.length));
+  }
   if (tab === 'twins') {
     const rows = m.twins.filter(t => matches(leadById.get(t.keepId)?.cells || []));
     if (!rows.length) return h('div', { class: 'empty' }, 'No twins in this list.');
@@ -590,6 +608,15 @@ function viewGate() {
 
 function viewSecurity() {
   const m = state.manifest;
+  if (!m.leads.length) {
+    return [
+      stage('security', 3, { focus: 0.5, label: 'Security Check', over: [crew('security-alert', 'left'),
+        say('SECURITY', [h('b', null, 'No passengers to scan. '), 'Nobody made it past Baggage Claim.'], { left: '25cqw', bottom: '62%' })] }),
+      h('div', { class: 'starter' }, h('b', null, 'There’s no one to check yet. '),
+        m.stats.rows ? 'Every row is in Lost & Found. Fill in their names or emails there, or load a different list.' : 'This file has headers but no rows. Load a list with leads in it.',
+        ' ', h('button', { class: 'btn small', onclick: () => go(m.stats.rows ? 'baggage' : 'checkin') }, m.stats.rows ? 'Open Lost & Found' : 'Back to Check-in')),
+    ];
+  }
   const total = m.leads.length * state.steps.length;
   const officer = crew('security-ok', 'left');
   const bubble = say('SECURITY', ['Line up, please. ', h('b', null, `${plural(m.leads.length, 'passenger')} × ${plural(state.steps.length, 'leg')} = ${plural(total, 'email')} to scan.`)], { left: '25cqw', bottom: '62%' });
@@ -670,6 +697,7 @@ function replay(res, { xr, belt, glow, officer, bubble }) {
   const m = state.manifest;
   const results = res.results;
   const n = results.length;
+  if (!n) return Promise.resolve();
   const steps = state.steps.length;
   const duration = Math.min(3600, 1200 + n * 1.2);
   belt.el.classList.remove('paused');
@@ -765,7 +793,7 @@ function viewBoarding() {
       h('span', { class: 'spacer' }),
       h('button', { class: 'btn primary', onclick: () => document.querySelector('.fix')?.scrollIntoView({ behavior: state.calm ? 'auto' : 'smooth', block: 'start' }) }, 'Fix them ↓'))
       : h('div', { class: 'fixed-note' }, '✅ Every passenger boards. Nothing to fix. Head to Take-off for your files.'),
-    h('p', { class: 'note' }, `Scanned ${plural(c.emails, 'email')} in ${(g.ms / 1000).toFixed(2)} s on this computer. No internet used.`),
+    h('p', { class: 'note' }, `Scanned ${plural(c.emails, 'email')} in ${g.ms < 10 ? 'under 0.01' : (g.ms / 1000).toFixed(2)} s on this computer. No internet used.`),
   ];
 
   if (g.reasons.length) {

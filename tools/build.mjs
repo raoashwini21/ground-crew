@@ -67,4 +67,8 @@ const html = readFileSync(join(appDir, 'index.html'), 'utf8')
 mkdirSync(join(root, 'dist'), { recursive: true });
 const out = join(root, 'dist', 'Ground Crew.html');
 writeFileSync(out, html);
+// The hosted Try-it copy (GitHub Pages serves /docs): the very same file.
+mkdirSync(join(root, 'docs'), { recursive: true });
+writeFileSync(join(root, 'docs', 'index.html'), html);
+writeFileSync(join(root, 'docs', '.nojekyll'), '');
 console.log(`dist/Ground Crew.html  ${(Buffer.byteLength(html) / 1024).toFixed(0)} KB`);

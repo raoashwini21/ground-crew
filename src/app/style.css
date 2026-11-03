@@ -113,7 +113,10 @@ main { padding: 22px 0 90px; }
 .glass { position: absolute; z-index: 3; left: 2.2cqw; top: 9cqw; width: 42cqw; background: rgba(255, 255, 255, .78); backdrop-filter: blur(8px); border-radius: 18px; padding: 1.6cqw 2cqw; box-shadow: 0 10px 30px rgba(20, 34, 58, .14); }
 .glass h1 { font: 800 clamp(26px, 4.2cqw, 54px)/1 var(--cond); margin: 0 0 .3em; color: var(--navy); letter-spacing: .005em; }
 .glass p { margin: 0; font-size: clamp(13px, 1.45cqw, 18px); color: #33445e; }
-@media (max-width: 760px) { .glass { position: static; width: auto; margin: 0 0 16px; background: var(--card); backdrop-filter: none; } .say { display: none; } }
+.mobile-intro { display: none; }
+.mobile-intro h1 { font: 800 30px/1.05 var(--cond); color: var(--navy); margin: 0 0 8px; }
+.mobile-intro p { margin: 0 0 16px; color: #33445e; }
+@media (max-width: 760px) { .glass, .say { display: none; } .mobile-intro { display: block; } }
 
 /* Baggage belt: real luggage tags riding the belt in the photo */
 .belt-lane { position: absolute; left: 0; right: 0; top: 61%; height: 14.5%; z-index: 2; }
@@ -298,6 +301,10 @@ td.fixed { color: var(--green); font-weight: 500; }
 td.fixed::after { content: " ✎"; color: var(--muted); font-size: 11px; }
 td.rownum { color: var(--muted); font-family: var(--mono); font-size: 13px; }
 tr.click { cursor: pointer; }
+tr.click:focus-visible td { outline: none; background: #fff0b3; }
+:focus-visible { outline: 3px solid #e6a800; outline-offset: 2px; }
+td.before { color: #a33; text-decoration: line-through; text-decoration-color: rgba(170, 51, 51, .4); }
+td.after { color: var(--green); font-weight: 600; }
 tr.sel td { background: #fff6d6; }
 .pill { display: inline-block; font: 800 11px/1 var(--mono); padding: 4px 7px; border-radius: 4px; letter-spacing: .06em; }
 .pill.mayday { background: var(--red); color: #fff; }

@@ -51,8 +51,10 @@ export function nameProblem(first) {
   const v = tidySpaces(first);
   if (!v) return 'No first name';
   if (JUNK_NAMES.has(v.toLowerCase())) return `"${v}" isn't a real name`;
-  if (/^\p{L}\.?$/u.test(v)) return `First name is only an initial ("${v}")`;
-  if (/^[\d\W_]+$/u.test(v)) return `"${v}" isn't a real name`;
+  // Only alphabets that have initials: a single 雷 or 李 is a whole name.
+  if (/^[A-Za-z\u00C0-\u024F]\.?$/.test(v)) return `First name is only an initial ("${v}")`;
+  if (/[<>{}[\]|\\/#$%^*=_~`]|\d/.test(v)) return `"${v}" doesn't look like a name`;
+  if (!/\p{L}/u.test(v)) return `"${v}" isn't a real name`;
   if (/@/.test(v)) return 'First name looks like an email';
   return null;
 }

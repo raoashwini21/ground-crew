@@ -13,6 +13,11 @@ export function h(tag, props, ...kids) {
       else el.setAttribute(k, v === true ? '' : v);
     }
   }
+  // Clickable rows work from the keyboard too (Tab to reach, Enter to open).
+  if (tag === 'tr' && /\bclick\b/.test(el.className)) {
+    el.tabIndex = 0;
+    el.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); el.click(); } });
+  }
   for (const kid of kids.flat(Infinity)) {
     if (kid == null || kid === false) continue;
     el.append(kid instanceof Node ? kid : document.createTextNode(String(kid)));

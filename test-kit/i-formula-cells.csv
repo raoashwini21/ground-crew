@@ -1,0 +1,5 @@
+First Name,Last Name,Email,Company,Title
+Eve,Mallory,eve@redteam.io,"=HYPERLINK(""http://example.invalid"",""click"")",CEO
+Bob,Plus,bob@plus.io,+44 20 7946 0000,Founder
+Cara,Minus,cara@minus.io,-Minus Labs,COO
+Dan,At,dan@at.io,@channel,CTO
