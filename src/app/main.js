@@ -36,6 +36,7 @@ const state = {
   baggageTab: 'boarding', query: '', shown: 100, reason: null, passenger: null,
   sample: [], bigWarning: false, justRan: false, fixNote: '',
   edits: new Map(), // lead index -> { column index: value you typed }
+  starter: true,    // still the placeholder email, not the person's own
   calm: readPref('calm') === '1',
   sound: readPref('sound') !== '0',
 };
@@ -205,6 +206,7 @@ async function loadFile(file) { setParsed(parseCSV(await file.text()), file.name
 function loadDemo() {
   const s = makeSkyline(3000);
   state.steps = SEQUENCE_PLANTED.map(x => ({ ...x }));
+  state.starter = false;
   setParsed({ headers: s.headers, rows: s.rows }, 'skyline-leads.csv');
 }
 function setParsed(parsed, name) {
@@ -270,12 +272,17 @@ async function rescan(note) {
   const res = await checkCampaignChunked(state.manifest, state.steps);
   res.ms = performance.now() - t0;
   Object.assign(state, {
-    gate: res, gateStale: false, justRan: true, reason: null, passenger: null,
+    gate: res, gateStale: false, justRan: true, ...firstMayday(res),
     fixNote: `${note} Boarded ${fmt(before)} → ${fmt(res.counts.cleared)}.`,
   });
   sfx.stamp();
   render();
   window.scrollTo({ top: 0 });
+}
+
+function firstMayday(res) {
+  const r = res.reasons.find(x => x.level === 'mayday');
+  return r ? { reason: r.key, passenger: r.leadIds[0] } : { reason: null, passenger: null };
 }
 
 function noteBanner() {
@@ -477,6 +484,7 @@ function viewTower() {
 
   return [
     stage('tower', 2, { focus: 0.55, over: [img, bubble] }),
+    state.starter ? h('div', { class: 'starter' }, h('b', null, '✏️ Paste your own emails below. '), 'Right now there’s only a starter email in leg 1. Replace it with your real subject and body, and add your follow-ups. Use tags like {{first_name}} and {{company}} where the lead’s details go.') : null,
     h('p', { class: 'lede' }, 'Each step of your sequence is a flight strip. The tower radios in as you type. The altimeter is a writing guide, not a promise of replies.'),
     h('div', { class: 'card' },
       h('div', { class: 'row' },
@@ -511,10 +519,11 @@ function updateTowerCrew() {
     towerCrew.img.src = ART(name);
     towerCrew.img.classList.remove('pop'); void towerCrew.img.offsetWidth; towerCrew.img.classList.add('pop');
   }
-  towerCrew.bubble.replaceChildren(
+  towerCrew.bubble.replaceChildren(...[
     h('span', { class: 'who' }, may ? `MAYDAY · LEG ${may.leg}` : turb ? `TOWER · LEG ${turb.leg}` : 'TOWER'),
     pick ? pick.line : h('b', null, 'Clear skies on every leg. Roger that.'),
-    all.length > 1 ? h('span', { class: 'muted' }, ` (+${all.length - 1} more below)`) : null);
+    all.length > 1 ? h('span', { class: 'muted' }, ` (+${all.length - 1} more below)`) : null,
+  ].filter(Boolean));
 }
 
 function towerLeg(step, i) {
@@ -539,11 +548,11 @@ function towerLeg(step, i) {
   };
   const subject = h('input', {
     type: 'text', value: step.subject, placeholder: i === 0 ? 'Subject line' : 'Empty = reply in the same thread',
-    oninput: e => { step.subject = e.target.value; schedule(); }, onfocus: e => { lastField = e.target; },
+    oninput: e => { step.subject = e.target.value; state.starter = false; schedule(); }, onfocus: e => { lastField = e.target; },
   });
   const body = h('textarea', {
     rows: 9, value: step.body,
-    oninput: e => { step.body = e.target.value; schedule(); }, onfocus: e => { lastField = e.target; },
+    oninput: e => { step.body = e.target.value; state.starter = false; schedule(); }, onfocus: e => { lastField = e.target; },
   });
   paint();
   const day = [0, 3, 7, 12, 18, 25][i];
@@ -593,7 +602,7 @@ function viewSecurity() {
       const res = await checkCampaignChunked(m, state.steps);
       res.ms = performance.now() - t0;
       if (!state.calm) await replay(res, { xr, belt, glow, officer, bubble });
-      Object.assign(state, { gate: res, gateStale: false, reason: null, passenger: null, justRan: true });
+      Object.assign(state, { gate: res, gateStale: false, justRan: true, ...firstMayday(res) });
       running = false;
       render();
       window.scrollTo({ top: 0 });
@@ -606,6 +615,7 @@ function viewSecurity() {
       inFrame: [belt.el, h('div', { class: 'tunnel-mask' }), glow],
       over: [officer, bubble],
     }),
+    state.starter ? h('div', { class: 'starter' }, h('b', null, 'Heads up: you’re checking the starter email, not your own. '), 'Paste your sequence in the Control Tower first, then scan.', ' ', h('button', { class: 'btn small', onclick: () => go('tower') }, 'Open the Control Tower')) : null,
     h('p', { class: 'lede' }, 'Security fills in every step for every lead, exactly as the inbox would see it, and scans the finished email. A blank tag shows up like a forbidden item in a bag.'),
     h('div', { class: 'row' }, btn, h('span', { class: 'muted small' }, 'Takes about a second. Nothing leaves this computer.')),
     h('div', { class: 'next' }, xr.el),
@@ -649,7 +659,7 @@ function renderMail(stepIndex, lead, xray) {
   return [
     s.subject && s.subject.trim() ? h('div', { class: 'subj' }, marked(s.subject, lead, xray)) : null,
     marked(s.body, lead, xray),
-  ];
+  ].filter(Boolean);
 }
 
 // Play the real results through the X-ray in order. Every number shown is
@@ -747,6 +757,12 @@ function viewBoarding() {
         { right: '27cqw', bottom: '64%' })],
     }),
     noteBanner(),
+    state.starter ? h('div', { class: 'starter' }, h('b', null, 'Heads up: you’re checking the starter email, not your own. '), 'Paste your sequence in the Control Tower first, then scan.', ' ', h('button', { class: 'btn small', onclick: () => go('tower') }, 'Open the Control Tower')) : null,
+    c.held ? h('div', { class: 'fixcta' },
+      h('span', null, h('b', null, `🔧 ${plural(c.held, 'passenger')} held at the gate.`), ' Each problem below has a one-click fix.'),
+      h('span', { class: 'spacer' }),
+      h('button', { class: 'btn primary', onclick: () => document.querySelector('.fix')?.scrollIntoView({ behavior: state.calm ? 'auto' : 'smooth', block: 'start' }) }, 'Fix them ↓'))
+      : h('div', { class: 'fixed-note' }, '✅ Every passenger boards. Nothing to fix. Head to Take-off for your files.'),
     h('p', { class: 'note' }, `Scanned ${plural(c.emails, 'email')} in ${(g.ms / 1000).toFixed(2)} s on this computer. No internet used.`),
   ];
 
@@ -997,7 +1013,7 @@ function viewTakeoff() {
 // ---------- Sweep the hangar ----------
 function sweep() {
   Object.assign(state, {
-    view: 'checkin', fileName: '', parsed: null, map: null, manifest: null, steps: blankSteps(),
+    view: 'checkin', fileName: '', parsed: null, map: null, manifest: null, steps: blankSteps(), starter: true,
     gate: null, gateStale: true, reason: null, passenger: null, query: '', bigWarning: false,
   });
   render();

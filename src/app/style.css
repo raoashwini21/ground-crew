@@ -328,6 +328,9 @@ footer { color: var(--muted); font-size: 14px; padding: 26px 0 40px; border-top:
 .empty { color: var(--muted); padding: 24px; text-align: center; border: 1px dashed #c3cfdc; border-radius: 12px; background: rgba(255, 255, 255, .6); }
 
 /* Fixes */
+.starter { background: #fff6d6; border: 1px solid #f0d77a; border-radius: 12px; padding: 12px 16px; margin: 0 0 16px; }
+.starter .btn { margin-left: 6px; }
+.fixcta { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; background: #fff; border: 2px solid var(--sign); border-radius: 14px; padding: 12px 16px; margin: 0 0 14px; box-shadow: var(--shadow); }
 .fixed-note { background: #e3f6ec; border: 1px solid #a9dcc0; color: #0f5c39; border-radius: 12px; padding: 12px 16px; margin: 0 0 16px; font-weight: 500; }
 .fix { border-left: 6px solid var(--sign); }
 .fixopt { padding: 12px 0; border-top: 1px solid var(--line); }
