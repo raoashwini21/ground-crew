@@ -2,7 +2,7 @@
 // filled in. Each rule has a radio line. The score is a writing heuristic,
 // not a prediction of replies or deliverability.
 
-import { compile, nearestHeader } from './template.js';
+import { compile, nearestHeader, tagFor } from './template.js';
 
 const SPAM = ['free', 'guarantee', 'guaranteed', 'act now', 'risk-free', 'risk free', 'click here', 'limited time', 'no obligation', '100%', 'winner', 'urgent', 'buy now', 'special offer', 'cash'];
 const CLICHES = ['hope this finds you well', 'hope you are well', "hope you're well", 'synergy', 'synergies', 'game-changing', 'game changer', 'game-changer', 'circle back', 'touch base', 'quick call', 'pick your brain', 'revolutionary', 'cutting-edge', 'best-in-class', 'world-class', 'leverage'];
@@ -52,7 +52,7 @@ export function towerCheck(step, index, { manifest = null, enabled = PRESETS.ope
         seen.add(t.raw);
         if (t.col === -1) {
           const near = nearestHeader(t.name, manifest.headers);
-          add('unknown_tag', `{{${t.name}}} isn't in your list.${near ? ` Did you mean {{${near.toLowerCase().replace(/[^a-z0-9]+/g, '_')}}}?` : ''}`);
+          add('unknown_tag', `{{${t.name}}} isn't in your list.${near ? ` Did you mean ${tagFor(near)}?` : ''}`);
         }
         else if (t.fallback === null) {
           const blanks = manifest.leads.filter(l => !String(l.cells[t.col] ?? '').trim()).length;

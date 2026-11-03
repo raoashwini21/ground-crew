@@ -153,7 +153,7 @@ test('a misspelled tag holds everyone and suggests the right column', () => {
   assert.equal(g.counts.cleared, 0);
   const r = g.reasons.find(x => x.key === 'unknown_tag:frist_name');
   assert.ok(r);
-  assert.match(r.hint, /First Name/);
+  assert.match(r.hint, /\{\{first_name\}\}/);
 });
 
 test('every email is checked: leads x steps', () => {

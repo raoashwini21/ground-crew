@@ -2,7 +2,7 @@
 // for every lead, exactly as the inbox would see it, and the finished text
 // is checked. Any Mayday holds the lead; turbulence boards but is listed.
 
-import { compile, fill, nearestHeader } from './template.js';
+import { compile, fill, nearestHeader, tagFor } from './template.js';
 import { LEGAL_END } from './clean.js';
 
 const SENTENCE_SPLIT = /((?<=[.!?])\s+)/;
@@ -44,7 +44,7 @@ function* checkIter(manifest, steps, chunk = 250) {
           kind: 'unknown_tag', level: 'mayday', step: i + 1,
           key: `unknown_tag:${t.name}`,
           label: `{{${t.name}}} isn't a column in your list`,
-          hint: near ? `Did you mean {{${near}}}?` : 'Check the spelling against your column names.',
+          hint: near ? `Did you mean ${tagFor(near)}?` : 'Check the spelling against your column names.',
         });
       }
       for (const b of part.broken) {
@@ -76,6 +76,7 @@ function* checkIter(manifest, steps, chunk = 250) {
 
   const results = [];
   let emails = 0;
+  let heldSoFar = 0;
   for (let i = 0; i < leads.length; i++) {
     const lead = leads[i];
     const issues = templateIssues.slice();
@@ -150,7 +151,8 @@ function* checkIter(manifest, steps, chunk = 250) {
     const held = deduped.some(x => x.level === 'mayday');
     results.push({ lead, status: held ? 'held' : 'cleared', issues: deduped, rendered });
 
-    if ((i + 1) % chunk === 0) yield { done: i + 1, total: leads.length, emails };
+    if (held) heldSoFar++;
+    if ((i + 1) % chunk === 0) yield { done: i + 1, total: leads.length, emails, held: heldSoFar };
   }
 
   return summarise(results, emails, steps.length, manifest);

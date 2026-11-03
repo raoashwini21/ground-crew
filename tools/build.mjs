@@ -34,7 +34,9 @@ if (existsSync(assetsDir)) {
     assets[sub.replace(/\\/g, '/')] = `data:${MIME[ext]};base64,${readFileSync(join(assetsDir, sub)).toString('base64')}`;
   }
 }
-script = `window.__ASSETS__=${JSON.stringify(assets)};` + script;
+// Fonts are only needed by the CSS; art and sounds are handed to the script.
+const forScript = Object.fromEntries(Object.entries(assets).filter(([k]) => !k.startsWith('fonts/')));
+script = `window.__ASSETS__=${JSON.stringify(forScript)};` + script;
 
 let css = readFileSync(join(appDir, 'style.css'), 'utf8');
 css = css.replace(/url\(["']?asset:([^"')]+)["']?\)/g, (m, name) => {
