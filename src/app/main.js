@@ -131,11 +131,13 @@ function crew(name, cls) {
 function say(who, content, pos) {
   return h('div', { class: 'say', style: pos }, h('span', { class: 'who' }, who), ...[content].flat());
 }
-function stage(scene, station, { focus = 0.5, tall = false, inFrame = [], over = [], label = '' } = {}) {
-  const frame = h('div', { class: `frame scene-${scene}`, style: { '--focus': focus } }, inFrame);
+function stage(scene, station, { focus = 0.5, tall = false, inFrame = [], over = [], label = '', sky = null } = {}) {
+  const frame = h('div', { class: `frame scene-${scene}` }, inFrame);
   frame.style.setProperty('--focus', focus);
+  // With sky: the scene sits under an open sky the camera can tilt up into.
+  const body = sky ? h('div', { class: 'world' }, frame, sky) : frame;
   return h('div', { class: 'stage' + (tall ? ' tall' : ''), role: 'img', 'aria-label': `${STATIONS[station][1]} scene` },
-    frame, stationSign(station, label), over);
+    body, stationSign(station, label), over);
 }
 
 // ---------- 00 Check-in ----------
@@ -983,14 +985,17 @@ function viewTakeoff() {
     a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 2000);
   };
+  const plane = h('div', { class: 'plane-rig' }, h('div', { class: 'trail' }), h('img', { src: ART('plane'), alt: '' }));
+  const clouds = [[8, 10, 26], [52, 4, 20], [70, 26, 30], [22, 38, 18], [84, 48, 22], [40, 54, 26], [4, 62, 18], [60, 70, 16]]
+    .map(([x, y, w]) => { const c = h('div', { class: 'cloud' }); c.style.left = `${x}%`; c.style.top = `${y}%`; c.style.setProperty('--w', `${w}cqw`); return c; });
   const st = stage('runway', 4, {
-    focus: 0.6,
-    inFrame: [h('img', { class: 'jetimg', src: ART('plane'), alt: '' })],
-    over: [crew('marshal-cheer', 'left full pop'), h('div', { class: 'wheels' }, 'Wheels up'),
-      say('MARSHAL', [h('b', null, `${plural(g.counts.cleared, 'passenger')} on board. `), 'Nothing was sent. Your files are ready.'], { left: '22cqw', bottom: '62%' })],
+    focus: 0.6, sky: [h('div', { class: 'sky' }, clouds), plane],
+    over: [crew('marshal-cheer', 'left full'), h('div', { class: 'wheels' }, 'Wheels up', h('small', null, `${plural(g.counts.cleared, 'passenger')} on board · nothing was sent`)),
+      say('MARSHAL', [h('b', null, `${plural(g.counts.cleared, 'passenger')} on board. `), 'Nothing was sent. Your files are ready.'], { left: '22cqw', bottom: '62%' }),
+      h('button', { class: 'btn small again', onclick: () => fly(st) }, '↻ Watch again')],
   });
-  st.classList.add(state.calm ? 'calmjet' : 'go');
-  if (!state.calm) setTimeout(() => sfx.jet(), 700);
+  st.classList.add('flight');
+  fly(st);
   return [
     st,
     h('div', { class: 'grid3 files' },
@@ -1008,6 +1013,15 @@ function viewTakeoff() {
         h('button', { class: 'btn', onclick: () => dl(`${base}-changes.csv`, changesCSV(m)) }, 'Download'))),
     h('p', { class: 'note next' }, 'Any cell that starts with =, +, - or @ is saved as plain text, so it can’t run as a formula in Excel or Sheets.'),
   ];
+}
+
+// Roll, rotate, climb: the camera tilts up to follow the plane into the sky.
+function fly(st) {
+  st.classList.remove('go', 'done', 'still');
+  if (state.calm) { st.classList.add('still'); return; }
+  void st.offsetWidth;
+  st.classList.add('go');
+  setTimeout(() => sfx.jet(7.2), 150);
 }
 
 // ---------- Sweep the hangar ----------

@@ -172,16 +172,61 @@ main { padding: 22px 0 90px; }
 @keyframes bob { to { transform: translateY(-2%); } }
 .walker .tag { position: absolute; left: 30%; top: -2%; transform: translateY(-100%); background: #fff; color: var(--ink); border-radius: 4px; padding: .2em .45em; font: 800 clamp(9px, .95cqw, 12px)/1.1 var(--mono); white-space: nowrap; box-shadow: 0 2px 6px rgba(0, 0, 0, .2); border-left: 3px solid var(--green); }
 
-/* Take-off: the plane rolls down the real runway and lifts off */
-.jetimg { position: absolute; z-index: 3; width: 36%; left: -40%; top: 62%; transform-origin: 70% 90%; }
-.stage.go .jetimg { animation: takeoff 5.2s cubic-bezier(.45, 0, .7, 1) .4s forwards; }
-@keyframes takeoff {
-  0% { left: -40%; top: 62%; transform: rotate(0); }
-  55% { left: 38%; top: 62%; transform: rotate(0); }
-  70% { left: 58%; top: 56%; transform: rotate(-7deg); }
-  100% { left: 120%; top: 6%; transform: rotate(-13deg); }
+/* Take-off: the plane rolls down the real runway, lifts off, and the camera
+   tilts up to follow it into the sky. Everything in the "world" is measured in
+   cqw (stage widths) so the path holds at any size. */
+.stage.flight { --sky: 64cqw; --crop: 7.5cqw; }
+@media (max-width: 760px) { .stage.flight { --crop: 0cqw; } }
+.stage.flight .world { position: absolute; left: 0; width: 100%; top: calc(-1 * (var(--sky) + var(--crop))); height: calc(var(--sky) + 56.25cqw); }
+.stage.flight .world .frame { top: var(--sky); margin-top: 0; }
+.stage.flight .world .frame::before { content: ""; position: absolute; left: 0; right: 0; top: -1px; height: 9cqw; background: linear-gradient(180deg, #6ca7dd, rgba(108, 167, 221, 0)); }
+.stage.flight .sky { position: absolute; left: 0; right: 0; top: 0; height: calc(var(--sky) + 1px); background: linear-gradient(180deg, #2a64b6 0%, #4f8fd6 45%, #6ca7dd 100%); overflow: hidden; }
+.cloud { position: absolute; width: var(--w, 22cqw); height: calc(var(--w, 22cqw) * .26); border-radius: 50%; background: radial-gradient(ellipse at 50% 60%, rgba(255, 255, 255, .9), rgba(255, 255, 255, .6) 45%, rgba(255, 255, 255, 0) 70%); filter: blur(.6cqw); }
+.cloud::before, .cloud::after { content: ""; position: absolute; border-radius: 50%; background: radial-gradient(circle, rgba(255, 255, 255, .9), rgba(255, 255, 255, 0) 68%); }
+.cloud::before { width: 55%; height: 140%; left: 14%; top: -55%; }
+.cloud::after { width: 45%; height: 115%; left: 46%; top: -35%; }
+.plane-rig { position: absolute; z-index: 3; left: 0; top: 0; width: 36cqw; transform-origin: 72% 92%; transform: translate(-42cqw, calc(var(--sky) + 33.6cqw)); }
+.plane-rig img { width: 100%; position: relative; z-index: 2; }
+.trail { position: absolute; z-index: 1; right: 86%; top: 38%; height: 7%; width: 0; border-radius: 99px; background: linear-gradient(90deg, rgba(255, 255, 255, 0), rgba(255, 255, 255, .85)); filter: blur(.25cqw); }
+.again { position: absolute; z-index: 7; right: 2.2cqw; bottom: 2.2cqw; opacity: 0; pointer-events: none; }
+.stage.flight .wheels { opacity: 0; left: 50%; right: auto; top: auto; bottom: 22%; transform: translateX(-50%); text-align: center; padding: .35em .8em; }
+.stage.flight .wheels small { display: block; font: 600 clamp(12px, 1.5cqw, 18px)/1.3 var(--sans); text-transform: none; letter-spacing: 0; color: var(--muted); margin-top: .2em; }
+@keyframes appearc { from { opacity: 0; transform: translate(-50%, 10px); } to { opacity: 1; transform: translate(-50%, 0); } }
+.stage.flight.go .world { animation: tilt 6.6s cubic-bezier(.45, 0, .25, 1) forwards; }
+.stage.flight.go .plane-rig { animation: climb 7.2s linear forwards; }
+.stage.flight.go .trail { animation: trail 7.2s linear forwards; }
+.stage.flight.go .crew { animation: sink 6.6s cubic-bezier(.45, 0, .25, 1) forwards; }
+.stage.flight.go .say { animation: fadeaway 6.6s linear forwards; }
+.stage.flight.go .wheels { animation: appearc .7s ease-out 6.3s forwards; }
+.stage.flight.go .again { animation: appear .4s ease-out 6.8s forwards; pointer-events: auto; }
+@keyframes tilt {
+  0%, 44% { transform: translateY(0); }
+  100% { transform: translateY(46cqw); }
 }
-.stage.calmjet .jetimg { left: 38%; }
+@keyframes climb {
+  0%   { transform: translate(-42cqw, calc(var(--sky) + 33.6cqw)) rotate(0) scale(1); }
+  18%  { transform: translate(-6cqw, calc(var(--sky) + 33.6cqw)) rotate(0) scale(1); }
+  34%  { transform: translate(34cqw, calc(var(--sky) + 33.6cqw)) rotate(0) scale(1); }
+  42%  { transform: translate(50cqw, calc(var(--sky) + 31cqw)) rotate(-7deg) scale(.96); }
+  60%  { transform: translate(58cqw, calc(var(--sky) + 4cqw)) rotate(-11deg) scale(.66); }
+  80%  { transform: translate(61cqw, calc(var(--sky) - 24cqw)) rotate(-12deg) scale(.42); }
+  100% { transform: translate(62cqw, calc(var(--sky) - 38cqw)) rotate(-12deg) scale(.26); }
+}
+@keyframes trail {
+  0%, 40% { width: 0; opacity: 0; }
+  46% { width: 30%; opacity: 1; }
+  100% { width: 260%; opacity: .9; }
+}
+@keyframes sink { 0%, 44% { transform: translateY(0); } 100% { transform: translateY(105%); } }
+@keyframes fadeaway { 0%, 40% { opacity: 1; } 55% { opacity: 0; } 100% { opacity: 0; } }
+@keyframes appear { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+/* Calm mode: no movement, just the plane up in the sky. */
+.stage.flight.still .world { transform: translateY(46cqw); }
+.stage.flight.still .plane-rig { transform: translate(62cqw, calc(var(--sky) - 38cqw)) rotate(-12deg) scale(.26); }
+.stage.flight.still .trail { width: 260%; }
+.stage.flight.still .crew { transform: translateY(105%); }
+.stage.flight.still .say { opacity: 0; }
+.stage.flight.still .wheels, .stage.flight.still .again { opacity: 1; pointer-events: auto; }
 .wheels { position: absolute; z-index: 6; right: 3cqw; top: 3cqw; font: 800 clamp(22px, 4cqw, 52px)/1 var(--cond); color: var(--navy); background: rgba(255, 255, 255, .8); padding: .2em .5em; border-radius: 10px; letter-spacing: .03em; text-transform: uppercase; }
 
 /* ---------- Content below the stage ---------- */
