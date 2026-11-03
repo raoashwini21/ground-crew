@@ -327,6 +327,17 @@ tr.sel td { background: #fff6d6; }
 footer { color: var(--muted); font-size: 14px; padding: 26px 0 40px; border-top: 1px solid var(--line); }
 .empty { color: var(--muted); padding: 24px; text-align: center; border: 1px dashed #c3cfdc; border-radius: 12px; background: rgba(255, 255, 255, .6); }
 
+/* Fixes */
+.fixed-note { background: #e3f6ec; border: 1px solid #a9dcc0; color: #0f5c39; border-radius: 12px; padding: 12px 16px; margin: 0 0 16px; font-weight: 500; }
+.fix { border-left: 6px solid var(--sign); }
+.fixopt { padding: 12px 0; border-top: 1px solid var(--line); }
+.fixopt:first-of-type { border-top: 0; padding-top: 4px; }
+.fixopt p { margin: 4px 0 10px; }
+.fbinput { width: 260px !important; }
+.fixbar { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; background: #fff6d6; border: 1px solid #f0d77a; border-radius: 12px; padding: 10px 14px; margin: 14px 0 0; font-size: 14px; }
+td input.cell { width: 170px; padding: 5px 8px; border-color: #e6b400; background: #fffbea; }
+.tablewrap.short { max-height: 340px; }
+
 /* ---------- Calm mode ---------- */
 body.calm *, body.calm *::before, body.calm *::after { animation: none !important; transition: none !important; }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }

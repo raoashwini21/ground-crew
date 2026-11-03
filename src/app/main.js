@@ -6,7 +6,10 @@ import {
   towerCheck, PRESETS, boardedCSV, heldCSV, changesCSV, tagFor, compile,
 } from '../engine/index.js';
 import { makeSkyline, SEQUENCE_PLANTED } from '../engine/skyline.js';
+import { resolveTag, nearestHeader } from '../engine/template.js';
+import { properName } from '../engine/clean.js';
 import { h, icon, flaps, clatter, gauge } from './ui.js';
+import * as sfx from './sound.js';
 
 const fmt = n => Number(n).toLocaleString('en-US');
 const plural = (n, one, many = one + 's') => `${fmt(n)} ${n === 1 ? one : many}`;
@@ -31,12 +34,15 @@ const state = {
   view: 'checkin', fileName: '', parsed: null, map: null, manifest: null,
   steps: blankSteps(), preset: 'operator', gate: null, gateStale: true,
   baggageTab: 'boarding', query: '', shown: 100, reason: null, passenger: null,
-  sample: [], bigWarning: false, justRan: false,
+  sample: [], bigWarning: false, justRan: false, fixNote: '',
+  edits: new Map(), // lead index -> { column index: value you typed }
   calm: readPref('calm') === '1',
+  sound: readPref('sound') !== '0',
 };
 function readPref(k) { try { return localStorage.getItem('gc.' + k); } catch { return null; } }
 function writePref(k, v) { try { localStorage.setItem('gc.' + k, v); } catch {} }
 
+sfx.setSound(state.sound);
 const app = document.getElementById('app');
 let radioEl;
 
@@ -74,6 +80,10 @@ function canVisit(id) {
 }
 function go(id) {
   if (!canVisit(id)) return;
+  if (id !== state.view) {
+    sfx.chime();
+    if (id === 'baggage') { sfx.hum(3.2); setTimeout(sfx.thunk, 500); setTimeout(sfx.thunk, 1300); }
+  }
   state.view = id;
   render();
   window.scrollTo({ top: 0 });
@@ -89,10 +99,14 @@ function render() {
     class: 'toggle' + (state.calm ? ' on' : ''), title: 'Calm mode: no animation',
     onclick: () => { state.calm = !state.calm; writePref('calm', state.calm ? '1' : '0'); render(); },
   }, state.calm ? '◼ Calm' : '◻ Calm');
+  const snd = h('button', {
+    class: 'toggle' + (state.sound ? ' on' : ''), title: 'Sound on or off',
+    onclick: () => { state.sound = !state.sound; sfx.setSound(state.sound); writePref('sound', state.sound ? '1' : '0'); if (state.sound) sfx.tick(); render(); },
+  }, state.sound ? '🔊 Sound' : '🔇 Sound');
   const views = { checkin: viewCheckin, baggage: viewBaggage, tower: viewTower, gate: viewGate, takeoff: viewTakeoff };
   const brand = h('div', { class: 'brand' }, h('span', { class: 'plane' }, icon('plane')), flaps('GROUND CREW', 'white'));
   app.replaceChildren(
-    h('header', { class: 'top' }, h('div', { class: 'wrap' }, brand, nav, h('div', { class: 'hdr-tools' }, calm, radioEl))),
+    h('header', { class: 'top' }, h('div', { class: 'wrap' }, brand, nav, h('div', { class: 'hdr-tools' }, snd, calm, radioEl))),
     h('main', null, h('div', { class: 'wrap' }, views[state.view]())),
     h('footer', null, h('div', { class: 'wrap row' },
       h('span', null, 'Ground Crew · the pre-flight check for outbound. No signal needed.'),
@@ -197,7 +211,7 @@ function setParsed(parsed, name) {
   if (!parsed.headers.length) { alert('That file looks empty.'); return; }
   Object.assign(state, {
     parsed, fileName: name, map: guessColumns(parsed.headers), manifest: null,
-    gate: null, gateStale: true, bigWarning: parsed.rows.length > 50000,
+    gate: null, gateStale: true, bigWarning: parsed.rows.length > 50000, edits: new Map(),
   });
   render();
   setTimeout(() => document.querySelector('.mapgrid')?.scrollIntoView({ behavior: state.calm ? 'auto' : 'smooth', block: 'center' }), 50);
@@ -205,9 +219,70 @@ function setParsed(parsed, name) {
 function boardList() {
   if (!('email' in state.map)) { alert('Ground Crew needs to know which column holds the email.'); return; }
   if (!('first_name' in state.map) && !('full_name' in state.map)) { alert('Pick a first name (or full name) column so greetings can be checked.'); return; }
-  state.manifest = buildManifest(state.parsed, state.map);
+  rebuildManifest();
   Object.assign(state, { gateStale: true, baggageTab: 'boarding', query: '', shown: 100 });
   go('baggage');
+}
+
+// ---------- Your fixes ----------
+// What you type never touches the original rows: edits sit on top, the
+// manifest is rebuilt from both, and each edit is logged in changes.csv.
+function workingParsed() {
+  const p = state.parsed;
+  if (!state.edits.size) return p;
+  return {
+    headers: p.headers,
+    rows: p.rows.map((r, i) => {
+      const e = state.edits.get(i);
+      if (!e) return r;
+      const c = r.slice();
+      for (const [k, v] of Object.entries(e)) c[k] = v;
+      return c;
+    }),
+  };
+}
+function rebuildManifest() {
+  const m = buildManifest(workingParsed(), state.map);
+  const manual = [];
+  for (const [i, e] of state.edits) {
+    for (const [k, v] of Object.entries(e)) {
+      manual.push({ id: -1, leadId: i, row: i + 2, column: m.headers[k], col: +k, before: state.parsed.rows[i][k] ?? '', after: v, why: 'edited by you' });
+    }
+  }
+  m.changes = [...manual, ...m.changes];
+  state.manifest = m;
+  state.gateStale = true;
+}
+function addEdits(list) {
+  for (const { id, col, value } of list) {
+    const cur = state.edits.get(id) || {};
+    cur[col] = value;
+    state.edits.set(id, cur);
+  }
+  rebuildManifest();
+}
+const editable = col => col != null && col < state.parsed.headers.length;
+const esc = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+async function rescan(note) {
+  const before = state.gate ? state.gate.counts.cleared : 0;
+  const t0 = performance.now();
+  const res = await checkCampaignChunked(state.manifest, state.steps);
+  res.ms = performance.now() - t0;
+  Object.assign(state, {
+    gate: res, gateStale: false, justRan: true, reason: null, passenger: null,
+    fixNote: `${note} Boarded ${fmt(before)} → ${fmt(res.counts.cleared)}.`,
+  });
+  sfx.stamp();
+  render();
+  window.scrollTo({ top: 0 });
+}
+
+function noteBanner() {
+  if (!state.fixNote) return null;
+  const el = h('div', { class: 'fixed-note' }, '✅ ', state.fixNote);
+  state.fixNote = '';
+  return el;
 }
 
 // ---------- 01 Baggage Claim ----------
@@ -242,6 +317,7 @@ function viewBaggage() {
           : ['Bags are off the plane! ', h('b', null, `${plural(m.stats.twinsMerged, 'twin')} merged, ${plural(m.stats.fixes, 'tag')} fixed.`)],
         { right: '24cqw', bottom: '60%' })],
     }),
+    noteBanner(),
     h('p', { class: 'lede' }, 'The list comes in messy and leaves clean. Every fix shows what it was before. Your original file is never touched.'),
     h('div', { class: 'tags' },
       ltag(m.stats.rows, 'checked in'),
@@ -316,13 +392,37 @@ function baggageTable(m, changesByLead, fixedLeads) {
   }
   if (tab === 'lost') {
     const rows = m.lostFound.filter(x => matches(x.lead.cells));
-    if (!rows.length) return h('div', { class: 'empty' }, 'Nothing in Lost & Found.');
-    return h('div', null, h('div', { class: 'tablewrap' }, h('table', null,
-      h('thead', null, h('tr', null, h('th', null, 'Row'), h('th', null, 'Why it’s held'), m.headers.map(x => h('th', null, x)))),
-      h('tbody', null, rows.slice(0, state.shown).map(x => h('tr', null,
-        h('td', { class: 'rownum' }, x.lead.row),
-        h('td', null, h('span', { class: 'pill lost' }, x.reasons.join(' · '))),
-        x.lead.cells.slice(0, m.headers.length).map(c => h('td', { title: c }, c))))))), more(rows.length));
+    if (!rows.length) return h('div', { class: 'empty' }, 'Nothing in Lost & Found. Every bag has its tag.');
+    // Type a missing name or email straight into the row, then re-check.
+    const cols = new Set([m.map.first_name, m.map.email, m.map.full_name].filter(editable));
+    const pending = new Map();
+    const save = h('button', {
+      class: 'btn primary', disabled: true, onclick: () => {
+        const list = [];
+        for (const [key, value] of pending) { const [id, col] = key.split(':').map(Number); list.push({ id, col, value }); }
+        const before = state.manifest.lostFound.length;
+        addEdits(list);
+        const found = before - state.manifest.lostFound.length;
+        state.fixNote = found
+          ? `${plural(found, 'bag')} found ${found === 1 ? 'its' : 'their'} tag and joined the manifest.`
+          : 'Saved. Those bags still need a real first name and a valid email to board.';
+        sfx.thunk();
+        render();
+      },
+    }, 'Save & re-check');
+    return h('div', null,
+      h('div', { class: 'fixbar' }, h('span', null, '✏️ Fill in a missing first name or email right in the table, then save. Your original file isn’t changed.'), h('span', { class: 'spacer' }), save),
+      h('div', { class: 'tablewrap' }, h('table', null,
+        h('thead', null, h('tr', null, h('th', null, 'Row'), h('th', null, 'Why it’s held'), m.headers.map(x => h('th', null, x)))),
+        h('tbody', null, rows.slice(0, state.shown).map(x => h('tr', null,
+          h('td', { class: 'rownum' }, x.lead.row),
+          h('td', null, h('span', { class: 'pill lost' }, x.reasons.join(' · '))),
+          x.lead.cells.slice(0, m.headers.length).map((c, col) => cols.has(col)
+            ? h('td', null, h('input', {
+              type: 'text', class: 'cell', value: c, placeholder: m.headers[col], 'aria-label': `${m.headers[col]}, row ${x.lead.row}`,
+              oninput: e => { pending.set(`${x.lead.id}:${col}`, e.target.value.trim()); save.disabled = false; },
+            }))
+            : h('td', { title: c }, c))))))), more(rows.length));
   }
   const list = (tab === 'fixed' ? fixedLeads : m.leads).filter(l => matches(l.cells));
   if (!list.length) return h('div', { class: 'empty' }, 'No passengers match.');
@@ -401,6 +501,12 @@ function updateTowerCrew() {
   const turb = all.find(c => c.kind === 'turbulence');
   const pick = may || turb;
   const name = may ? 'controller-alert' : 'controller-ok';
+  const line = pick ? pick.line : '';
+  if (towerCrew.lastLine !== undefined && line !== towerCrew.lastLine) {
+    if (may && !towerCrew.wasMayday) sfx.mayday(); else sfx.radio();
+  }
+  towerCrew.lastLine = line;
+  towerCrew.wasMayday = !!may;
   if (!towerCrew.img.src.endsWith(ART(name).slice(-40))) {
     towerCrew.img.src = ART(name);
     towerCrew.img.classList.remove('pop'); void towerCrew.img.offsetWidth; towerCrew.img.classList.add('pop');
@@ -556,6 +662,7 @@ function replay(res, { xr, belt, glow, officer, bubble }) {
   const duration = Math.min(3600, 1200 + n * 1.2);
   belt.el.classList.remove('paused');
   glow.classList.add('on');
+  sfx.hum(duration / 1000 + 0.6);
   let heldSoFar = 0;
   const lane = [];
   let last = -1;
@@ -583,6 +690,7 @@ function replay(res, { xr, belt, glow, officer, bubble }) {
         xr.verdict.className = 'verdict ' + (held ? 'bad' : 'ok');
         xr.verdict.textContent = held ? 'MAYDAY · HOLD' : 'CLEAR';
         glow.classList.toggle('alarm', held);
+        if (held) sfx.buzz(); else sfx.beep();
         const want = held ? 'security-alert' : 'security-ok';
         if (officer.dataset.pose !== want) { officer.dataset.pose = want; officer.src = ART(want); }
         if (held) {
@@ -626,7 +734,7 @@ function viewBoarding() {
       h('span', { class: 'k' }, 'Held'), flaps(fmt(c.held), c.held ? 'red' : 'green'),
       h('span', { class: 'k' }, 'Lost bags'), flaps(fmt(c.heldAtBaggage)),
       h('span', { class: 'k' }, 'Status'), flaps(g.status, g.status === 'CLEARED' ? 'green' : 'red')));
-  if (state.justRan) { state.justRan = false; setTimeout(() => clatter(board, state.calm), 120); }
+  if (state.justRan) { state.justRan = false; setTimeout(() => clatter(board, state.calm, sfx.flap), 120); }
 
   const parts = [
     stage('gate', 3, {
@@ -638,6 +746,7 @@ function viewBoarding() {
           : [h('b', null, `${plural(c.held, 'passenger')} can’t board. `), 'Their email would go out broken. Have a look below.'],
         { right: '27cqw', bottom: '64%' })],
     }),
+    noteBanner(),
     h('p', { class: 'note' }, `Scanned ${plural(c.emails, 'email')} in ${(g.ms / 1000).toFixed(2)} s on this computer. No internet used.`),
   ];
 
@@ -646,7 +755,7 @@ function viewBoarding() {
     parts.push(h('div', { class: 'tablewrap round' }, h('table', null,
       h('thead', null, h('tr', null, h('th', null, ''), h('th', null, 'Problem'), h('th', null, 'Leads'), h('th', null, 'Leg'), h('th', null, 'Example'), h('th', null, 'Fix'))),
       h('tbody', null, g.reasons.map(r => h('tr', {
-        class: 'click' + (state.reason === r.key ? ' sel' : ''), onclick: () => { state.reason = r.key; state.passenger = r.leadIds[0]; render(); },
+        class: 'click' + (state.reason === r.key ? ' sel' : ''), onclick: () => { state.reason = r.key; state.passenger = r.leadIds[0]; sfx.stamp(); render(); },
       },
         h('td', null, h('span', { class: `pill ${r.level}` }, r.level === 'mayday' ? 'MAYDAY' : 'TURBULENCE')),
         h('td', null, r.label),
@@ -669,11 +778,12 @@ function viewBoarding() {
     },
   }, '🎲 Show me 5 random passengers');
   const ids = chosen ? chosen.leadIds : state.reason === '__sample' ? state.sample : [];
+  if (chosen) parts.push(fixPanel(chosen));
   parts.push(h('div', { class: 'row next' }, h('h3', null, chosen ? `Passengers · ${chosen.label}` : state.reason === '__sample' ? 'Random spot-check' : 'Boarding passes'), h('span', { class: 'spacer' }), sampleBtn));
   const list = ids.slice(0, 200).map(id => resultsById.get(id)).filter(Boolean);
   const left = list.length ? h('div', { class: 'tablewrap round' }, h('table', null,
     h('thead', null, h('tr', null, h('th', null, 'Seat'), h('th', null, 'Passenger'), h('th', null, 'Company'), h('th', null, 'Status'))),
-    h('tbody', null, list.map(r => h('tr', { class: 'click' + (state.passenger === r.lead.id ? ' sel' : ''), onclick: () => { state.passenger = r.lead.id; render(); } },
+    h('tbody', null, list.map(r => h('tr', { class: 'click' + (state.passenger === r.lead.id ? ' sel' : ''), onclick: () => { state.passenger = r.lead.id; sfx.stamp(); render(); } },
       h('td', { class: 'rownum' }, r.lead.row),
       h('td', null, nameOf(m, r.lead)),
       h('td', null, 'company' in m.map ? r.lead.cells[m.map.company] : ''),
@@ -689,6 +799,93 @@ function viewBoarding() {
       ? h('button', { class: 'btn primary', onclick: () => go('takeoff') }, `Board ${fmt(c.cleared)} and taxi →`)
       : h('button', { class: 'btn primary', disabled: true, title: 'Fix the Maydays first' }, 'Nobody can board yet')));
   return parts;
+}
+
+// One fix per kind of problem, right where it's found. Every fix re-scans.
+function fixPanel(r) {
+  const m = state.manifest;
+  const name = r.key.split(':').slice(1).join(':');
+  const box = h('div', { class: 'card fix next' }, h('h3', null, r.level === 'mayday' ? '🔧 Fix it' : 'ℹ️ Your call'));
+  const towerBtn = () => h('button', { class: 'btn', onclick: () => go('tower') }, 'Open the Control Tower');
+  const replaceTag = (from, to) => {
+    const re = new RegExp(`\\{\\{\\s*${esc(from)}\\s*(\\|[^{}]*)?\\}\\}`, 'gi');
+    for (const s of state.steps) { s.subject = s.subject.replace(re, (_, fb = '') => `{{${to}${fb}}}`); s.body = s.body.replace(re, (_, fb = '') => `{{${to}${fb}}}`); }
+  };
+
+  if (r.kind === 'empty_tag') {
+    const col = resolveTag(name, m.headers, m.map);
+    const guess = col === m.map.first_name ? 'there' : col === m.map.company ? 'your team' : '';
+    const fb = h('input', { type: 'text', value: guess, placeholder: 'e.g. your team', class: 'fbinput' });
+    box.append(h('div', { class: 'fixopt' },
+      h('b', null, '1 · Add a fallback'),
+      h('p', { class: 'muted small' }, `Leads with no ${name} get these words instead, in every leg. Your tag becomes {{${name}|…}}.`),
+      h('div', { class: 'row' }, fb, h('button', {
+        class: 'btn primary', onclick: () => {
+          const v = fb.value.trim();
+          if (!v) { fb.focus(); return; }
+          const re = new RegExp(`\\{\\{\\s*${esc(name)}\\s*\\}\\}`, 'gi');
+          for (const s of state.steps) { s.subject = s.subject.replace(re, `{{${name}|${v}}}`); s.body = s.body.replace(re, `{{${name}|${v}}}`); }
+          rescan(`Fallback added: {{${name}|${v}}} in every leg.`);
+        },
+      }, 'Apply & re-scan'))));
+    if (editable(col)) {
+      const leads = r.leadIds.slice(0, 40).map(id => m.leads.find(l => l.id === id)).filter(Boolean);
+      const inputs = leads.map(l => ({ l, el: h('input', { type: 'text', class: 'cell', placeholder: name, 'aria-label': `${name} for ${nameOf(m, l)}` }) }));
+      box.append(h('div', { class: 'fixopt' },
+        h('b', null, `2 · Or fill in the ${name} yourself`),
+        h('p', { class: 'muted small' }, r.count > 40 ? `Showing the first 40 of ${fmt(r.count)}. Leave any blank to keep it held.` : 'Leave any blank to keep it held.'),
+        h('div', { class: 'tablewrap round short' }, h('table', null,
+          h('thead', null, h('tr', null, h('th', null, 'Row'), h('th', null, 'Passenger'), h('th', null, 'Email'), h('th', null, name))),
+          h('tbody', null, inputs.map(({ l, el }) => h('tr', null,
+            h('td', { class: 'rownum' }, l.row), h('td', null, nameOf(m, l)), h('td', null, l.cells[m.map.email] || ''), h('td', null, el)))))),
+        h('div', { class: 'row next' }, h('span', { class: 'spacer' }), h('button', {
+          class: 'btn', onclick: () => {
+            const list = inputs.filter(x => x.el.value.trim()).map(x => ({ id: x.l.id, col, value: x.el.value.trim() }));
+            if (!list.length) return;
+            addEdits(list);
+            rescan(`You filled in ${plural(list.length, name)}.`);
+          },
+        }, 'Save & re-scan'))));
+    }
+  } else if (r.kind === 'unknown_tag') {
+    const near = nearestHeader(name, m.headers);
+    if (near) {
+      const to = tagFor(near).slice(2, -2);
+      box.append(h('div', { class: 'fixopt' },
+        h('p', null, `{{${name}}} isn’t a column in your list. It looks like a typo for ${tagFor(near)}.`),
+        h('button', { class: 'btn primary', onclick: () => { replaceTag(name, to); rescan(`{{${name}}} changed to {{${to}}} in every leg.`); } }, `Change to {{${to}}} everywhere & re-scan`)));
+    } else {
+      box.append(h('div', { class: 'fixopt' }, h('p', null, `{{${name}}} isn’t a column in your list. Change it to one of your columns, or remove it.`), towerBtn()));
+    }
+  } else if (r.kind === 'broken_tag') {
+    box.append(h('div', { class: 'fixopt' }, h('p', null, `“${name}” is missing a brace. Tags need two on each side, like {{first_name}}.`), towerBtn()));
+  } else if (r.kind === 'shouting' && r.level === 'mayday') {
+    const col = resolveTag(name, m.headers, m.map);
+    if (editable(col)) {
+      box.append(h('div', { class: 'fixopt' },
+        h('p', null, `${plural(r.count, 'lead')} would be greeted in capitals, like “Hi JOHN”.`),
+        h('button', {
+          class: 'btn primary', onclick: () => {
+            const list = r.leadIds.map(id => m.leads.find(l => l.id === id)).filter(Boolean).map(l => ({ id: l.id, col, value: properName(l.cells[col]) }));
+            addEdits(list);
+            rescan(`Capitals fixed for ${plural(list.length, 'lead')}.`);
+          },
+        }, 'Fix the capitals & re-scan')));
+    }
+  } else {
+    const tips = {
+      copied_line: 'These board. The same “personal” line goes to many people, which reads like a template. Consider writing real first lines for them, or dropping the tag.',
+      long_line: 'These board. A long company name stretches the sentence. You could shorten the sentence around the tag.',
+      long_subject: 'These board. The subject runs long once the company is filled in. A shorter subject keeps it readable on a phone.',
+      role_address: 'These board, but they go to a shared inbox like info@. Those rarely reply. You can remove them from boarded.csv if you prefer.',
+      legal_ending: 'These board, but the company still has a legal ending like “Inc.” in the sentence.',
+      messy: 'These board, with a double space or stray punctuation. Usually a blank in the middle of a sentence.',
+      shouting: 'These board, but the company is in capitals.',
+    };
+    box.append(h('p', { class: 'muted' }, tips[r.kind] || 'These board. It’s listed so you can decide.'));
+  }
+  if (r.level === 'mayday') box.append(h('p', { class: 'note' }, 'Or take off without them. They’re saved in held.csv with the reason.'));
+  return box;
 }
 
 // Real cleared passengers walk to the gate, name tags on.
@@ -762,6 +959,7 @@ function viewTakeoff() {
   const m = state.manifest, g = state.gate;
   const base = state.fileName.replace(/\.[^.]+$/, '') || 'campaign';
   const dl = (name, text) => {
+    sfx.stamp();
     const url = URL.createObjectURL(new Blob(['﻿' + text], { type: 'text/csv;charset=utf-8' }));
     const a = h('a', { href: url, download: name });
     document.body.append(a);
@@ -776,6 +974,7 @@ function viewTakeoff() {
       say('MARSHAL', [h('b', null, `${plural(g.counts.cleared, 'passenger')} on board. `), 'Nothing was sent. Your files are ready.'], { left: '22cqw', bottom: '62%' })],
   });
   st.classList.add(state.calm ? 'calmjet' : 'go');
+  if (!state.calm) setTimeout(() => sfx.jet(), 700);
   return [
     st,
     h('div', { class: 'grid3 files' },

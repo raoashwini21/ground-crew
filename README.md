@@ -42,6 +42,22 @@ One file, about 280 KB.
 
 ---
 
+## Fix it where you find it
+
+Finding problems is half the job. Every Mayday at the gate comes with a fix, and each fix re-scans straight away:
+
+| Problem | One-click fix |
+|---|---|
+| `{{company}}` blank for 80 leads | Add a fallback (`{{company\|your team}}`), or type the missing values in |
+| `{{frist_name}}` isn't a column | Change it to `{{first_name}}` in every leg |
+| `Hi JOHN` | Fix the capitals for those leads |
+| No name or bad email (Lost & Found) | Type it into the row and re-check |
+
+Your original file is never changed.
+Everything you type is logged in `changes.csv` as *edited by you*.
+
+---
+
 ## What it catches
 
 **Held at the gate (Mayday)**
@@ -84,6 +100,8 @@ Fonts, styles and code are all inside the one file.
 
 The **Radio Silence** light in the corner reads that lock, and counts any request the page tries.
 It stays at `0 TX`.
+
+Even the sounds are made live in the browser (the ding-dong, the radio, the X-ray beep, the jet), so there are no audio files to fetch.
 
 ---
 
@@ -144,3 +162,4 @@ Every person and company in it is invented.
 ---
 
 MIT licence · Fonts: Barlow and JetBrains Mono (SIL Open Font License)
+Art: scenes and crew generated for this project during Hackyard build week, cleaned and packed by `tools/art.py`.
