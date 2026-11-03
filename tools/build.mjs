@@ -34,11 +34,13 @@ if (existsSync(assetsDir)) {
     assets[sub.replace(/\\/g, '/')] = `data:${MIME[ext]};base64,${readFileSync(join(assetsDir, sub)).toString('base64')}`;
   }
 }
-// Fonts are only needed by the CSS; art and sounds are handed to the script.
-const forScript = Object.fromEntries(Object.entries(assets).filter(([k]) => !k.startsWith('fonts/')));
+let css = readFileSync(join(appDir, 'style.css'), 'utf8');
+// Anything the CSS uses (fonts, scenes) lives in the CSS only; the rest
+// (crew, suitcases, plane) is handed to the script. Nothing is packed twice.
+const inCss = new Set([...css.matchAll(/asset:([^"')]+)/g)].map(m => m[1]));
+const forScript = Object.fromEntries(Object.entries(assets).filter(([k]) => !inCss.has(k) && !k.startsWith('fonts/')));
 script = `window.__ASSETS__=${JSON.stringify(forScript)};` + script;
 
-let css = readFileSync(join(appDir, 'style.css'), 'utf8');
 css = css.replace(/url\(["']?asset:([^"')]+)["']?\)/g, (m, name) => {
   if (!assets[name]) throw new Error(`missing asset ${name}`);
   return `url("${assets[name]}")`;

@@ -77,6 +77,7 @@ function* checkIter(manifest, steps, chunk = 250) {
   const results = [];
   let emails = 0;
   let heldSoFar = 0;
+  const recentHeld = [];
   for (let i = 0; i < leads.length; i++) {
     const lead = leads[i];
     const issues = templateIssues.slice();
@@ -151,8 +152,8 @@ function* checkIter(manifest, steps, chunk = 250) {
     const held = deduped.some(x => x.level === 'mayday');
     results.push({ lead, status: held ? 'held' : 'cleared', issues: deduped, rendered });
 
-    if (held) heldSoFar++;
-    if ((i + 1) % chunk === 0) yield { done: i + 1, total: leads.length, emails, held: heldSoFar };
+    if (held) { heldSoFar++; recentHeld.push(lead.id); if (recentHeld.length > 6) recentHeld.shift(); }
+    if ((i + 1) % chunk === 0) yield { done: i + 1, total: leads.length, emails, held: heldSoFar, recentHeld: recentHeld.slice() };
   }
 
   return summarise(results, emails, steps.length, manifest);
