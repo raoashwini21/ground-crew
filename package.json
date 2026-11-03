@@ -1,0 +1,16 @@
+{
+  "name": "ground-crew",
+  "version": "0.1.0",
+  "description": "The pre-flight check for outbound. No signal needed.",
+  "scripts": {
+    "build": "node tools/build.mjs",
+    "test": "node --test test/*.test.js",
+    "skyline": "node tools/skyline.mjs"
+  },
+  "author": "Ashwini Rao",
+  "license": "MIT",
+  "devDependencies": {
+    "esbuild": "0.24.0"
+  },
+  "type": "module"
+}

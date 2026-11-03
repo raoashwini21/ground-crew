@@ -1,0 +1,30 @@
+{
+  "planted": [
+    {
+      "subject": "QUICK QUESTION FOR {{company}}!",
+      "body": "Hi {{frist_name}},\n\nHope this finds you well. {{icebreaker}}.\n\nWe help teams like {{company}} book more meetings with outbound that is guaranteed to land in the inbox — and we have done it for teams of every size, from two-person startups to agencies with dozens of client lists. See https://example.com/case-study and https://example.com/pricing.\n\nI think we could really help. We would love to show you what our team has built. Our team is great!!\n\nBest,\nAsh"
+    },
+    {
+      "subject": "",
+      "body": "Hi {{first_name}},\n\nJust following up on my last note. Did you get a chance to look?\n\nAsh"
+    },
+    {
+      "subject": "",
+      "body": "Hi {{first_name}},\n\nLast one from me. If outbound isn't a focus at {{company}} right now, no worries. Worth a quick chat next month?\n\nAsh"
+    }
+  ],
+  "fixed": [
+    {
+      "subject": "quick question, {{first_name}}",
+      "body": "Hi {{first_name}},\n\n{{icebreaker}}.\n\nMost teams like {{company}} preview a handful of emails and hope the rest look fine. We check every one before it sends.\n\nWorth a look?\n\nAsh"
+    },
+    {
+      "subject": "",
+      "body": "Hi {{first_name}},\n\nOne idea: a two-minute check of your next campaign before it goes out. Want me to send it over?\n\nAsh"
+    },
+    {
+      "subject": "",
+      "body": "Hi {{first_name}},\n\nLast note from me. If outbound isn't a focus at {{company}} right now, no worries at all. Should I check back next quarter?\n\nAsh"
+    }
+  ]
+}
