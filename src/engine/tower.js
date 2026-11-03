@@ -2,7 +2,7 @@
 // filled in. Each rule has a radio line. The score is a writing heuristic,
 // not a prediction of replies or deliverability.
 
-import { compile } from './template.js';
+import { compile, nearestHeader } from './template.js';
 
 const SPAM = ['free', 'guarantee', 'guaranteed', 'act now', 'risk-free', 'risk free', 'click here', 'limited time', 'no obligation', '100%', 'winner', 'urgent', 'buy now', 'special offer', 'cash'];
 const CLICHES = ['hope this finds you well', 'hope you are well', "hope you're well", 'synergy', 'synergies', 'game-changing', 'game changer', 'game-changer', 'circle back', 'touch base', 'quick call', 'pick your brain', 'revolutionary', 'cutting-edge', 'best-in-class', 'world-class', 'leverage'];
@@ -50,13 +50,16 @@ export function towerCheck(step, index, { manifest = null, enabled = PRESETS.ope
       for (const t of c.tags) {
         if (seen.has(t.raw)) continue;
         seen.add(t.raw);
-        if (t.col === -1) add('unknown_tag', `Mayday: {{${t.name}}} isn't in your list.`);
+        if (t.col === -1) {
+          const near = nearestHeader(t.name, manifest.headers);
+          add('unknown_tag', `{{${t.name}}} isn't in your list.${near ? ` Did you mean {{${near.toLowerCase().replace(/[^a-z0-9]+/g, '_')}}}?` : ''}`);
+        }
         else if (t.fallback === null) {
           const blanks = manifest.leads.filter(l => !String(l.cells[t.col] ?? '').trim()).length;
-          if (blanks) add('blank_tag', `Mayday: ${blanks} lead${blanks === 1 ? ' has' : 's have'} no ${t.name}. Add a fallback.`);
+          if (blanks) add('blank_tag', `${fmtN(blanks)} lead${blanks === 1 ? ' has' : 's have'} no ${t.name}. Add a fallback, like {{${t.name}|your team}}.`);
         }
       }
-      for (const b of c.broken) add('broken_tag', `Mayday: "${b}" is a broken tag.`);
+      for (const b of c.broken) add('broken_tag', `"${b}" is a broken tag. Tags need two braces each side.`);
     }
   }
 
@@ -80,7 +83,10 @@ export function towerCheck(step, index, { manifest = null, enabled = PRESETS.ope
   if (me >= 4 && me > you * 2) add('me_heavy', `${me} I's and we's, ${you} you's. Make it about them.`);
 
   const lines = sentences(plain);
-  const tail = lines.slice(-2).join(' ');
+  // Ignore the sign-off ("Best,", "Ash") when looking for the ask.
+  const bodyLines = plain.split('\n').map(x => x.trim()).filter(Boolean);
+  while (bodyLines.length > 1 && wordList(bodyLines[bodyLines.length - 1]).length <= 3 && !/\?/.test(bodyLines[bodyLines.length - 1])) bodyLines.pop();
+  const tail = sentences(bodyLines.join('\n')).slice(-2).join(' ');
   if (plain.trim() && !/\?/.test(tail) && !/\b(let me know|worth a|open to|interested|reply|thoughts)\b/i.test(tail)) {
     add('no_ask', 'No ask on approach. End with one easy question.');
   }
@@ -112,3 +118,4 @@ export function towerCheck(step, index, { manifest = null, enabled = PRESETS.ope
 }
 
 const cap = s => s[0].toUpperCase() + s.slice(1);
+const fmtN = n => Number(n).toLocaleString('en-US');

@@ -221,3 +221,15 @@ test('tower: a clean step is clear skies', () => {
     assert.equal(t.clear, true, JSON.stringify(t.calls));
   });
 });
+
+test('tower: a sign-off does not hide the ask', () => {
+  const t = towerCheck({ subject: 'hi', body: 'Hi {{first_name}},\n\nWorth a quick chat next week?\n\nBest,\nAsh' }, 0, { manifest });
+  assert.ok(!t.calls.some(c => c.rule === 'no_ask'));
+  const t2 = towerCheck({ subject: 'hi', body: 'Hi {{first_name}},\n\nWe build tools.\n\nBest,\nAsh' }, 0, { manifest });
+  assert.ok(t2.calls.some(c => c.rule === 'no_ask'));
+});
+
+test('tower: a misspelled tag suggests the right one', () => {
+  const t = towerCheck({ subject: '', body: 'Hi {{frist_name}}, worth a chat?' }, 0, { manifest });
+  assert.match(t.calls.find(c => c.rule === 'unknown_tag').line, /Did you mean \{\{first_name\}\}/);
+});
