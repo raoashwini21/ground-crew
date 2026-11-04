@@ -934,7 +934,7 @@ function fixPanel(r) {
   return box;
 }
 
-// Real cleared passengers walk to the gate, name tags on.
+// Real cleared passengers walk to the gate, tagged with their company.
 function walkers(g) {
   const m = state.manifest;
   const cleared = g.results.filter(r => r.status === 'cleared');
@@ -943,7 +943,10 @@ function walkers(g) {
     const r = cleared[Math.floor(i * cleared.length / 4)];
     const el = h('div', { class: 'walker' },
       h('img', { src: ART(`passenger-${n}`), alt: '' }),
-      r ? h('span', { class: 'tag' }, (r.lead.cells[m.map.first_name] || '') + ' ✓') : null);
+      // Company, not first name: the figures are fixed art, and a name could
+      // put a woman's name on a man's figure or the other way round.
+      // The name rides on the passenger's bag as a luggage tag, so it fits any passenger.
+      r ? h('span', { class: 'tag', title: 'Boarded' }, r.lead.cells[m.map.first_name] || `Seat ${r.lead.row}`) : null);
     el.style.setProperty('--dur', `${dur}s`);
     el.style.setProperty('--delay', `${-(i / 4) * dur}s`);
     return el;
