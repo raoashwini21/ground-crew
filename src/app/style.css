@@ -380,6 +380,20 @@ tr.sel td { background: #fff6d6; }
 footer { color: var(--muted); font-size: 14px; padding: 26px 0 40px; border-top: 1px solid var(--line); }
 .empty { color: var(--muted); padding: 24px; text-align: center; border: 1px dashed #c3cfdc; border-radius: 12px; background: rgba(255, 255, 255, .6); }
 
+/* Boarding passes: one row per passenger, opening in place */
+.paxlist .tabs { margin: 8px 0; }
+.pax { background: #fff; border: 1px solid var(--line); border-radius: 12px; margin: 8px 0; box-shadow: 0 1px 2px rgba(20, 34, 58, .05); overflow: hidden; }
+.pax.held { border-left: 5px solid var(--red); }
+.pax.open { box-shadow: var(--shadow); border-color: #c9d5e2; }
+.paxhead { display: grid; grid-template-columns: 70px minmax(120px, 1.1fr) minmax(100px, 1fr) 90px minmax(140px, 2fr) 20px; gap: 12px; align-items: center; width: 100%; padding: 11px 14px; background: none; border: 0; text-align: left; cursor: pointer; font-size: 14.5px; }
+.paxhead:hover { background: #f8fafc; }
+.paxhead .who { font-weight: 600; }
+.paxhead .why { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.paxhead .chev { color: var(--muted); }
+.pax .passwrap { padding: 4px 14px 16px; }
+.pax .passwrap .pass { max-width: 860px; }
+@media (max-width: 760px) { .paxhead { grid-template-columns: 1fr auto 20px; } .paxhead .rownum, .paxhead .muted:not(.why), .paxhead .why { display: none; } }
+
 /* Fixes */
 .starter { background: #fff6d6; border: 1px solid #f0d77a; border-radius: 12px; padding: 12px 16px; margin: 0 0 16px; }
 .starter .btn { margin-left: 6px; }

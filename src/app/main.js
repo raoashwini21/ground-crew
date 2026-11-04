@@ -287,7 +287,79 @@ async function rescan(note) {
 
 function firstMayday(res) {
   const r = res.reasons.find(x => x.level === 'mayday');
-  return r ? { reason: r.key, passenger: r.leadIds[0] } : { reason: null, passenger: null };
+  return r
+    ? { reason: r.key, passTab: 'problem', openPass: new Set([r.leadIds[0]]), passShown: 50, passQuery: '' }
+    : { reason: null, passTab: null, openPass: new Set(), passShown: 50, passQuery: '' };
+}
+
+// Every passenger, filterable, each row opening to its boarding pass.
+function passengerList(g, chosen) {
+  const m = state.manifest;
+  const c = g.counts;
+  const turbulent = g.results.filter(r => r.status === 'cleared' && r.issues.length);
+  const tabs = [
+    chosen ? ['problem', `${chosen.level === 'mayday' ? '🔴' : '🟡'} ${chosen.label} · ${fmt(chosen.count)}`] : null,
+    c.held ? ['held', `Held · ${fmt(c.held)}`] : null,
+    ['boarded', `Boarded · ${fmt(c.cleared)}`],
+    turbulent.length ? ['turb', `Boarded with a note · ${fmt(turbulent.length)}`] : null,
+    ['all', `Everyone · ${fmt(c.leads)}`],
+  ].filter(Boolean);
+  let tab = state.passTab;
+  if (!tabs.some(t => t[0] === tab)) tab = c.held ? 'held' : 'boarded';
+
+  const byId = new Map(g.results.map(r => [r.lead.id, r]));
+  const pool = tab === 'problem' ? chosen.leadIds.map(id => byId.get(id)).filter(Boolean)
+    : tab === 'held' ? g.results.filter(r => r.status === 'held')
+      : tab === 'boarded' ? g.results.filter(r => r.status === 'cleared')
+        : tab === 'turb' ? turbulent : g.results;
+
+  const holder = h('div');
+  const paint = () => {
+    const q = (state.passQuery || '').trim().toLowerCase();
+    const list = q ? pool.filter(r => r.lead.cells.some(x => String(x).toLowerCase().includes(q))) : pool;
+    const shown = list.slice(0, state.passShown || 50);
+    holder.replaceChildren(...[
+      list.length ? h('div', null, shown.map(r => paxRow(r))) : h('div', { class: 'empty' }, q ? 'No passengers match.' : 'Nobody here.'),
+      list.length > shown.length ? h('div', { class: 'row next' },
+        h('span', { class: 'muted small' }, `Showing ${fmt(shown.length)} of ${fmt(list.length)}`),
+        h('button', { class: 'btn small', onclick: () => { state.passShown = (state.passShown || 50) + 50; paint(); } }, 'Show 50 more')) : null,
+    ].filter(Boolean));
+  };
+  const paxRow = r => {
+    const l = r.lead;
+    const open = state.openPass?.has(l.id);
+    const first = r.issues.find(x => x.level === 'mayday') || r.issues[0];
+    const box = h('div', { class: 'pax' + (open ? ' open' : '') + (r.status === 'held' ? ' held' : '') });
+    const head = h('button', {
+      class: 'paxhead', 'aria-expanded': open ? 'true' : 'false',
+      onclick: () => {
+        const set = state.openPass || (state.openPass = new Set());
+        if (set.has(l.id)) set.delete(l.id); else { set.add(l.id); sfx.stamp(); }
+        box.replaceWith(paxRow(r));
+      },
+    },
+    h('span', { class: 'rownum' }, `Row ${l.row}`),
+    h('span', { class: 'who' }, nameOf(m, l)),
+    h('span', { class: 'muted' }, 'company' in m.map ? l.cells[m.map.company] || '(no company)' : ''),
+    h('span', { class: 'pill ' + (r.status === 'held' ? 'mayday' : first ? 'turbulence' : 'clear') }, r.status === 'held' ? 'HELD' : first ? 'NOTE' : 'BOARDED'),
+    h('span', { class: 'why muted' }, first ? first.label : 'All emails check out'),
+    h('span', { class: 'chev' }, open ? '▴' : '▾'));
+    box.append(head);
+    if (open) box.append(h('div', { class: 'passwrap' }, boardingPass(r)));
+    return box;
+  };
+  paint();
+
+  return h('div', { class: 'paxlist next' },
+    h('div', { class: 'row' }, h('h3', null, 'Boarding passes'), h('span', { class: 'muted small' }, 'Click anyone to see the exact emails they’d get.')),
+    h('div', { class: 'row' },
+      h('div', { class: 'tabs' }, tabs.map(([id, label]) => h('button', {
+        class: tab === id ? 'on' : '',
+        onclick: () => { Object.assign(state, { passTab: id, passShown: 50 }); if (id !== 'problem') state.reason = null; render(); },
+      }, label))),
+      h('span', { class: 'spacer' }),
+      h('input', { type: 'search', placeholder: 'Search passengers', value: state.passQuery || '', oninput: e => { state.passQuery = e.target.value; state.passShown = 50; paint(); } })),
+    holder);
 }
 
 function noteBanner() {
@@ -801,7 +873,11 @@ function viewBoarding() {
     parts.push(h('div', { class: 'tablewrap round' }, h('table', null,
       h('thead', null, h('tr', null, h('th', null, ''), h('th', null, 'Problem'), h('th', null, 'Leads'), h('th', null, 'Leg'), h('th', null, 'Example'), h('th', null, 'Fix'))),
       h('tbody', null, g.reasons.map(r => h('tr', {
-        class: 'click' + (state.reason === r.key ? ' sel' : ''), onclick: () => { state.reason = r.key; state.passenger = r.leadIds[0]; sfx.stamp(); render(); },
+        class: 'click' + (state.reason === r.key ? ' sel' : ''), onclick: () => {
+          Object.assign(state, { reason: r.key, passTab: 'problem', openPass: new Set([r.leadIds[0]]), passShown: 50, passQuery: '' });
+          sfx.stamp(); render();
+          document.querySelector('.fix, .paxlist')?.scrollIntoView({ behavior: state.calm ? 'auto' : 'smooth', block: 'start' });
+        },
       },
         h('td', null, h('span', { class: `pill ${r.level}` }, r.level === 'mayday' ? 'MAYDAY' : 'TURBULENCE')),
         h('td', null, r.label),
@@ -811,31 +887,9 @@ function viewBoarding() {
         h('td', { class: 'muted', title: r.hint }, r.hint)))))));
   }
 
-  const resultsById = new Map(g.results.map(r => [r.lead.id, r]));
   const chosen = g.reasons.find(r => r.key === state.reason);
-  const sampleBtn = h('button', {
-    class: 'btn small', onclick: () => {
-      const pool = g.results;
-      const pick = new Set();
-      while (pick.size < Math.min(5, pool.length)) pick.add(pool[Math.floor(Math.random() * pool.length)].lead.id);
-      Object.assign(state, { reason: '__sample', sample: [...pick] });
-      state.passenger = state.sample[0];
-      render();
-    },
-  }, '🎲 Show me 5 random passengers');
-  const ids = chosen ? chosen.leadIds : state.reason === '__sample' ? state.sample : [];
   if (chosen) parts.push(fixPanel(chosen));
-  parts.push(h('div', { class: 'row next' }, h('h3', null, chosen ? `Passengers · ${chosen.label}` : state.reason === '__sample' ? 'Random spot-check' : 'Boarding passes'), h('span', { class: 'spacer' }), sampleBtn));
-  const list = ids.slice(0, 200).map(id => resultsById.get(id)).filter(Boolean);
-  const left = list.length ? h('div', { class: 'tablewrap round' }, h('table', null,
-    h('thead', null, h('tr', null, h('th', null, 'Seat'), h('th', null, 'Passenger'), h('th', null, 'Company'), h('th', null, 'Status'))),
-    h('tbody', null, list.map(r => h('tr', { class: 'click' + (state.passenger === r.lead.id ? ' sel' : ''), onclick: () => { state.passenger = r.lead.id; sfx.stamp(); render(); } },
-      h('td', { class: 'rownum' }, r.lead.row),
-      h('td', null, nameOf(m, r.lead)),
-      h('td', null, 'company' in m.map ? r.lead.cells[m.map.company] : ''),
-      h('td', null, h('span', { class: 'pill ' + (r.status === 'held' ? 'mayday' : 'clear') }, r.status === 'held' ? 'HELD' : 'BOARDED'))))))) : h('div', { class: 'empty' }, 'Pick a problem above, or spot-check 5 random passengers.');
-  const pr = resultsById.get(state.passenger);
-  parts.push(h('div', { class: 'grid2' }, left, pr ? boardingPass(pr) : h('div', { class: 'empty' }, 'Click a passenger to open their boarding pass: the exact emails they’d get.')));
+  parts.push(passengerList(g, chosen));
 
   parts.push(h('div', { class: 'row next' },
     h('button', { class: 'btn', onclick: () => go('tower') }, '← Back to the tower'),
