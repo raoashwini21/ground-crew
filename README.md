@@ -2,7 +2,7 @@
 
 **The pre-flight check for outbound. No signal needed.**
 
-![Ground Crew check-in hall: the Marshal waves you in](.github/readme/checkin.jpg)
+![Ground Crew: the pre-flight check for outbound. No signal needed.](.github/readme/cover.jpg)
 
 You load 3,000 leads into a sequence.
 You preview the first 20. They look fine.
@@ -10,7 +10,7 @@ The other 2,980? You hope for the best.
 
 Then someone gets `Hi {{first_name}},`
 Priya gets the same email twice.
-A CEO reads "Loved what is doing."
+A founder reads "Loved what is doing."
 
 Ground Crew catches all of it before you send, and helps you fix it.
 **Check every email. Upload nothing.**
@@ -28,6 +28,8 @@ On your laptop. With the Wi-Fi off.
 Your lead list is your clients' data.
 Most tools that can check every email want you to upload it first, and then charge per check.
 Ground Crew checks it where it already is: on your laptop.
+
+![Ground Crew check-in hall: the Marshal waves you in](.github/readme/checkin.jpg)
 
 - **🔒 Private by design.** Not one row is uploaded. The page itself blocks the internet, so it couldn't send anything if it tried.
 - **∞ No credits, no limits.** No sign-up, no per-email pricing. 50,000 leads are checked in about 2 seconds.
@@ -61,7 +63,7 @@ One file, about 1.7 MB, with all the art, fonts and sounds inside.
 |---|---|
 | **00 Check-in** | Drop in a CSV from Apollo, Clay, Sales Navigator or any sheet. Ground Crew guesses which column is which, and you confirm. |
 | **01 Baggage Claim** | Fixes messy fields, merges twins, and holds rows that can't be emailed. Every fix shows what it was before. |
-| **02 Control Tower** | Each email step is a flight strip. The tower radios in as you type: broken tags, blanks with no fallback, spammy words, long sentences. |
+| **02 Control Tower** | Each email step is a flight strip. The tower radios in as you type: broken tags, blanks with no fallback, spammy words, long sentences. Spintax is understood, and every version is checked. |
 | **03 Boarding Gate** | Security Check fills in every step for every lead and scans the finished email. Any Mayday holds that lead. |
 | **04 Take-off** | Download the clean leads, the held leads with reasons, and a log of every change. Nothing is sent. |
 
@@ -99,6 +101,18 @@ Everything you type is logged in `changes.csv` as *edited by you*.
 - Broken braces: `{first_name}}`
 - Names still in capitals: `Hi JOHN`
 
+**Radioed in by the Control Tower, as you type**
+- Body over about 100 words, or a sentence over 25
+- A loud subject: too long, in capitals, or with `!`
+- Far more "I" and "we" than "you"
+- No question or clear ask at the end
+- Spammy words (`free`, `guaranteed`, `act now`) and clichés (`hope this finds you well`, `circle back`)
+- Links in the first email, or more than one link
+- "Just following up" in a follow-up
+- Em dashes (house style)
+
+Prefer a lighter touch? Switch the tower to **Gentle**, and it only radios Maydays and length. The score is a writing guide, not a prediction of replies.
+
 **Boards, but flagged (Turbulence)**
 - A "personal" line copied across hundreds of leads
 - A sentence or subject that gets too long once the company name is filled in
@@ -112,6 +126,10 @@ Everything you type is logged in `changes.csv` as *edited by you*.
 - `Brightwave Pvt Ltd` → `Brightwave`
 - `VP Sales | Ex-Google | Speaker` → `VP Sales`
 - Same email or same LinkedIn profile → merged into one lead
+
+**Spintax, every version**
+- `{Hi|Hey|Hello} {{first_name}}` is read as three versions, and the tower checks tags and wording in every one
+- Each lead's boarding pass shows the exact version that lead would get
 
 **Sent to Lost & Found**
 - No first name, or junk like `Test`, `N/A`, `J.`
@@ -180,7 +198,7 @@ In the page, a 50,000-row file loads in about 1.3 s and is scanned in about 2 s,
 
 ```bash
 npm install
-npm test        # 32 tests: every planted problem caught, look-alikes left alone
+npm test        # 39 tests: every planted problem caught, look-alikes left alone
 npm run build   # → dist/Ground Crew.html
 npm run skyline # → data/skyline-leads.csv
 ```
