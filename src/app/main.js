@@ -48,8 +48,13 @@ const app = document.getElementById('app');
 let radioEl;
 
 // ---------- Radio silence: the page's own security policy is the proof ----------
-const radio = { locked: false, transmissions: 0, blocked: 0 };
+const radio = { locked: false, transmissions: 0, blocked: 0, offline: false };
 function initRadio() {
+  // When the laptop really goes offline, the light says so and the Marshal
+  // pops up. Ground Crew never needed the network, so nothing else changes.
+  radio.offline = navigator.onLine === false;
+  window.addEventListener('offline', () => { radio.offline = true; paintRadio(); toast('plane'); });
+  window.addEventListener('online', () => { radio.offline = false; paintRadio(); toast('back'); });
   const meta = document.querySelector('meta[http-equiv="Content-Security-Policy"]');
   radio.locked = !!meta && /connect-src 'none'/.test(meta.content) && /default-src 'none'/.test(meta.content);
   const count = () => {
@@ -61,15 +66,31 @@ function initRadio() {
 }
 function paintRadio() {
   if (!radioEl) return;
-  radioEl.className = 'radio' + (radio.transmissions ? ' bad' : radio.locked ? '' : ' warn');
+  radioEl.className = 'radio' + (radio.transmissions ? ' bad' : !radio.locked ? ' warn' : radio.offline ? ' plane' : '');
   radioEl.replaceChildren(
     h('span', { class: 'lamp' }),
     radio.transmissions ? `${plural(radio.transmissions, 'TRANSMISSION')}`
-      : radio.locked ? 'RADIO SILENCE · 0 TX' : 'RADIO CHECK · DEV BUILD',
+      : !radio.locked ? 'RADIO CHECK · DEV BUILD'
+        : radio.offline ? '✈ AIRPLANE MODE · 0 TX' : 'RADIO SILENCE · 0 TX',
     radio.blocked ? ` · ${fmt(radio.blocked)} BLOCKED` : '');
   radioEl.title = radio.locked
-    ? "This page's security policy blocks every network request. Nothing you load here can leave this computer."
+    ? (radio.offline ? 'This computer is offline, and Ground Crew keeps working. ' : '') + "This page's security policy blocks every network request. Nothing you load here can leave this computer."
     : 'This copy was opened without its security policy.';
+}
+
+let toastEl = null;
+function toast(kind) {
+  if (toastEl) toastEl.remove();
+  const plane = kind === 'plane';
+  toastEl = h('div', { class: 'toast' + (plane ? ' plane' : ''), role: 'status' },
+    h('img', { src: ART(plane ? 'marshal-cheer' : 'marshal-wave'), alt: '' }),
+    h('div', null,
+      h('b', null, plane ? '✈ Airplane mode. Wi-Fi’s off? We don’t mind.' : 'Back online.'),
+      h('span', null, plane ? 'Nothing was going anywhere anyway. Keep going, every check still works.' : 'Still nothing sent. Ground Crew never needed it.')));
+  document.body.append(toastEl);
+  if (plane) sfx.chime();
+  const el = toastEl;
+  setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 500); }, plane ? 6500 : 4000);
 }
 
 // ---------- layout ----------
@@ -103,7 +124,8 @@ function render() {
   const snd = h('button', {
     class: 'toggle' + (state.sound ? ' on' : ''), title: 'Sound on or off',
     onclick: () => { state.sound = !state.sound; sfx.setSound(state.sound); writePref('sound', state.sound ? '1' : '0'); if (state.sound) sfx.tick(); render(); },
-  }, state.sound ? '🔊 Sound' : '🔇 Sound');
+  }, state.sound ? '🔊' : '🔇');
+  snd.setAttribute('aria-label', state.sound ? 'Sound on' : 'Sound off');
   const views = { checkin: viewCheckin, baggage: viewBaggage, tower: viewTower, gate: viewGate, takeoff: viewTakeoff };
   const brand = h('div', { class: 'brand' }, h('span', { class: 'plane' }, icon('plane')), flaps('GROUND CREW', 'white'));
   app.replaceChildren(
@@ -163,8 +185,9 @@ function viewCheckin() {
   input);
 
   const glass = h('div', { class: 'glass' },
-    h('h1', null, 'You built it. Now get it out there.'),
-    h('p', null, 'Ground Crew checks every email, for every lead, across every step, before your campaign takes off. On your laptop, with the Wi-Fi off. Nothing is uploaded, nothing is sent.'));
+    h('span', { class: 'eyebrow' }, 'You built it. Now get it out there.'),
+    h('h1', null, 'Check every email. Upload nothing.'),
+    h('p', null, 'Your lead list is your clients’ data. Ground Crew checks every email, for every lead, across every step, right here on your laptop. It even works in airplane mode.'));
 
   const parts = [
     stage('checkin', 0, {
@@ -173,11 +196,13 @@ function viewCheckin() {
         say('MARSHAL', ['Welcome aboard! ', h('b', null, 'Nothing takes off until it’s checked.')], { right: '27cqw', bottom: '58%' })],
     }),
     h('div', { class: 'mobile-intro' },
-      h('h1', null, 'You built it. Now get it out there.'),
-      h('p', null, 'Ground Crew checks every email, for every lead, before your campaign takes off. On your laptop, with the Wi-Fi off.')),
+      h('span', { class: 'eyebrow' }, 'You built it. Now get it out there.'),
+      h('h1', null, 'Check every email. Upload nothing.'),
+      h('p', null, 'Your lead list is your clients’ data. Ground Crew checks every email for every lead right here on your laptop, even in airplane mode.')),
     ticket,
     h('div', { class: 'row demo-row' }, h('span', { class: 'muted small' }, 'No list handy?'),
       h('button', { class: 'btn small', onclick: loadDemo }, '✈ Try it with Skyline Leads (3,000 made-up leads)')),
+    state.parsed ? null : whyOffline(),
   ];
 
   if (state.bigWarning) {
@@ -205,6 +230,17 @@ function viewCheckin() {
         h('button', { class: 'btn primary', onclick: boardList }, 'Bags to Baggage Claim →'))));
   }
   return parts;
+}
+
+// Why it runs offline: three reasons, each one you can check yourself.
+function whyOffline() {
+  const card = (icon, title, text) => h('div', { class: 'why' }, h('span', { class: 'wicon' }, icon), h('b', null, title), h('p', null, text));
+  return h('div', { class: 'whyoff next' },
+    h('h3', null, 'Why it runs offline'),
+    h('div', { class: 'grid3' },
+      card('🔒', 'Your clients’ data stays put', 'Not one row is uploaded, not to us, not to anyone. The page itself blocks the internet: the light up top proves it.'),
+      card('∞', 'No credits, no limits', 'No sign-up and no per-email pricing. 50,000 leads are checked in about 2 seconds, on your own laptop.'),
+      card('✈', 'Works on the plane', 'Prep Monday’s campaign on the flight, on bad café Wi-Fi, or when the internet is down. Turn Wi-Fi off and try it.')));
 }
 
 async function loadFile(file) { setParsed(parseCSV(await file.text()), file.name); }
@@ -865,7 +901,7 @@ function viewBoarding() {
       h('span', { class: 'spacer' }),
       h('button', { class: 'btn primary', onclick: () => document.querySelector('.fix')?.scrollIntoView({ behavior: state.calm ? 'auto' : 'smooth', block: 'start' }) }, 'Fix them ↓'))
       : h('div', { class: 'fixed-note' }, '✅ Every passenger boards. Nothing to fix. Head to Take-off for your files.'),
-    h('p', { class: 'note' }, `Scanned ${plural(c.emails, 'email')} in ${g.ms < 10 ? 'under 0.01' : (g.ms / 1000).toFixed(2)} s on this computer. No internet used.`),
+    h('p', { class: 'note' }, `Scanned ${plural(c.emails, 'email')} in ${g.ms < 10 ? 'under 0.01' : (g.ms / 1000).toFixed(2)} s on this computer. ${radio.offline ? 'In airplane mode.' : 'No internet used.'}`),
   ];
 
   if (g.reasons.length) {
@@ -1075,7 +1111,7 @@ function viewTakeoff() {
     .map(([x, y, w]) => { const c = h('div', { class: 'cloud' }); c.style.left = `${x}%`; c.style.top = `${y}%`; c.style.setProperty('--w', `${w}cqw`); return c; });
   const st = stage('runway', 4, {
     focus: 0.6, sky: [h('div', { class: 'sky' }, clouds), plane],
-    over: [crew('marshal-cheer', 'left full'), h('div', { class: 'wheels' }, 'Wheels up', h('small', null, `${plural(g.counts.cleared, 'passenger')} on board · nothing was sent`)),
+    over: [crew('marshal-cheer', 'left full'), h('div', { class: 'wheels' }, 'Wheels up', h('small', null, `${plural(g.counts.cleared, 'passenger')} on board · nothing was sent${radio.offline ? ' · checked in airplane mode' : ''}`)),
       say('MARSHAL', [h('b', null, `${plural(g.counts.cleared, 'passenger')} on board. `), 'Nothing was sent. Your files are ready.'], { left: '22cqw', bottom: '62%' }),
       h('button', { class: 'btn small again', onclick: () => fly(st) }, '↻ Watch again')],
   });

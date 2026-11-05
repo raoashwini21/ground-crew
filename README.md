@@ -13,12 +13,29 @@ Priya gets the same email twice.
 A CEO reads "Loved what is doing."
 
 Ground Crew catches all of it before you send, and helps you fix it.
+**Check every email. Upload nothing.**
 It checks **every email, for every lead, across every step**.
 On your laptop. With the Wi-Fi off.
 
 > Built for Hackyard Yard #6 · theme: **Offline**
 >
 > 🎬 Demo video: *coming soon*
+
+---
+
+## Why it runs offline
+
+Your lead list is your clients' data.
+Most tools that can check every email want you to upload it first, and then charge per check.
+Ground Crew checks it where it already is: on your laptop.
+
+- **🔒 Private by design.** Not one row is uploaded. The page itself blocks the internet, so it couldn't send anything if it tried.
+- **∞ No credits, no limits.** No sign-up, no per-email pricing. 50,000 leads are checked in about 2 seconds.
+- **✈ Works on the plane.** Prep Monday's campaign on the flight, on bad café Wi-Fi, or when the internet is down.
+  Turn your Wi-Fi off mid-check and the light switches to **✈ AIRPLANE MODE**. The Marshal doesn't mind.
+
+The stakes are simple: one broken tag × 3,000 sends = 3,000 people who now think you're a bot.
+A sent email can't be recalled.
 
 ---
 
