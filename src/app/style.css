@@ -405,6 +405,21 @@ footer { color: var(--muted); font-size: 14px; padding: 26px 0 40px; border-top:
 .toast.out { opacity: 0; transform: translate(-50%, 12px); transition: all .45s; }
 @keyframes toastin { from { opacity: 0; transform: translate(-50%, 20px); } }
 
+button.radio { cursor: pointer; font: 500 12px/1 var(--mono); }
+.toast.lock { border-color: var(--red); }
+.toast.bad { border-color: var(--red); background: #fff1f1; }
+.whyoff .locktest { margin-top: 10px; }
+
+/* Keep the gantry on one line, whatever the light says */
+@media (min-width: 761px) {
+  header.top .wrap { gap: 10px; }
+  .brand .flap { font-size: 12px; }
+  nav.stations { gap: 4px; }
+  nav.stations button { padding: 5px 8px 5px 5px; font-size: 14px; gap: 6px; }
+  .radio { padding: 7px 8px; font-size: 11px; letter-spacing: .02em; }
+  .toggle { padding: 5px 7px; }
+}
+
 /* Check-in: why it runs offline */
 .eyebrow { display: block; font: 800 clamp(11px, 1.2cqw, 14px)/1 var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--orange); margin-bottom: .7em; }
 .mobile-intro .eyebrow { font-size: 12px; }

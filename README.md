@@ -132,6 +132,8 @@ No CDN, no analytics, no fonts from the web, no AI API.
 Fonts, styles and code are all inside the one file.
 
 The **Radio Silence** light in the corner reads that lock, and counts any request the page tries.
+Click it (or **Test the lock** on the first screen) and the page tries to send a request on purpose:
+its own lock refuses it, and the light shows **1 BLOCKED**. Nothing leaves.
 It stays at `0 TX`.
 
 Even the sounds are made live in the browser (the ding-dong, the radio, the X-ray beep, the jet), so there are no audio files to fetch.

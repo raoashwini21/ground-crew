@@ -74,23 +74,43 @@ function paintRadio() {
         : radio.offline ? '✈ AIRPLANE MODE · 0 TX' : 'RADIO SILENCE · 0 TX',
     radio.blocked ? ` · ${fmt(radio.blocked)} BLOCKED` : '');
   radioEl.title = radio.locked
-    ? (radio.offline ? 'This computer is offline, and Ground Crew keeps working. ' : '') + "This page's security policy blocks every network request. Nothing you load here can leave this computer."
+    ? (radio.offline ? 'This computer is offline, and Ground Crew keeps working. ' : '') + "This page's security policy blocks every network request. Nothing you load here can leave this computer. Click to test it."
     : 'This copy was opened without its security policy.';
 }
 
 let toastEl = null;
+const TOASTS = {
+  plane: ['plane', 'marshal-cheer', '✈ Airplane mode. Wi-Fi’s off? We don’t mind.', 'Nothing was going anywhere anyway. Keep going, every check still works.', 6500],
+  back: ['', 'marshal-wave', 'Back online.', 'Still nothing sent. Ground Crew never needed it.', 4000],
+  blocked: ['lock', 'security-alert', '🔒 Blocked. This page can’t reach the internet, even when it tries.', 'It just tried to send a request and its own security lock refused it. See the light up top: 1 BLOCKED.', 7000],
+  leak: ['bad', 'marshal-worried', 'That request got out.', 'This copy isn’t locked. Use the original Ground Crew.html from the repo.', 8000],
+  nolock: ['bad', 'marshal-worried', 'This copy has no lock.', 'It was opened without its security policy. Use the original Ground Crew.html from the repo.', 6000],
+};
 function toast(kind) {
   if (toastEl) toastEl.remove();
-  const plane = kind === 'plane';
-  toastEl = h('div', { class: 'toast' + (plane ? ' plane' : ''), role: 'status' },
-    h('img', { src: ART(plane ? 'marshal-cheer' : 'marshal-wave'), alt: '' }),
-    h('div', null,
-      h('b', null, plane ? '✈ Airplane mode. Wi-Fi’s off? We don’t mind.' : 'Back online.'),
-      h('span', null, plane ? 'Nothing was going anywhere anyway. Keep going, every check still works.' : 'Still nothing sent. Ground Crew never needed it.')));
+  const [cls, img, title, text, ms] = TOASTS[kind];
+  toastEl = h('div', { class: 'toast' + (cls ? ' ' + cls : ''), role: 'status' },
+    h('img', { src: ART(img), alt: '' }),
+    h('div', null, h('b', null, title), h('span', null, text)));
   document.body.append(toastEl);
-  if (plane) sfx.chime();
+  if (kind === 'plane') sfx.chime();
+  if (kind === 'blocked') sfx.buzz();
   const el = toastEl;
-  setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 500); }, plane ? 6500 : 4000);
+  setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 500); }, ms);
+}
+
+// Proof anyone can run: the page tries to send a request, and its own
+// security policy refuses it before anything leaves the computer.
+async function testLock() {
+  if (!radio.locked) { toast('nolock'); return; }
+  let leaked = false;
+  try {
+    await fetch('https://example.com/ground-crew-lock-test', { mode: 'no-cors', cache: 'no-store' });
+    leaked = true;
+  } catch {}
+  await new Promise(r => setTimeout(r, 120));
+  paintRadio();
+  toast(leaked ? 'leak' : 'blocked');
 }
 
 // ---------- layout ----------
@@ -113,7 +133,7 @@ function go(id) {
 
 function render() {
   document.body.classList.toggle('calm', state.calm);
-  radioEl = h('div', { class: 'radio' });
+  radioEl = h('button', { class: 'radio', onclick: testLock });
   const nav = h('nav', { class: 'stations' }, STATIONS.map(([id, label], i) =>
     h('button', { class: state.view === id ? 'on' : '', disabled: !canVisit(id), onclick: () => go(id) },
       h('span', { class: 'n' }, String(i).padStart(2, '0')), label)));
@@ -238,7 +258,9 @@ function whyOffline() {
   return h('div', { class: 'whyoff next' },
     h('h3', null, 'Why it runs offline'),
     h('div', { class: 'grid3' },
-      card('🔒', 'Your clients’ data stays put', 'Not one row is uploaded, not to us, not to anyone. The page itself blocks the internet: the light up top proves it.'),
+      h('div', { class: 'why' }, h('span', { class: 'wicon' }, '🔒'), h('b', null, 'Your clients’ data stays put'),
+        h('p', null, 'Not one row is uploaded, not to us, not to anyone. The page itself blocks the internet. Don’t take our word for it:'),
+        h('button', { class: 'btn small locktest', onclick: testLock }, '🔒 Test the lock: try to send something')),
       card('∞', 'No credits, no limits', 'No sign-up and no per-email pricing. 50,000 leads are checked in about 2 seconds, on your own laptop.'),
       card('✈', 'Works on the plane', 'Prep Monday’s campaign on the flight, on bad café Wi-Fi, or when the internet is down. Turn Wi-Fi off and try it.')));
 }
