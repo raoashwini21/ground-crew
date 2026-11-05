@@ -172,7 +172,7 @@ export function makeSkyline(n = 3000, seed = 2026) {
 export const SEQUENCE_PLANTED = [
   {
     subject: 'QUICK QUESTION FOR {{company}}!',
-    body: 'Hi {{frist_name}},\n\nHope this finds you well. {{icebreaker}}.\n\nWe help teams like {{company}} book more meetings with outbound that is guaranteed to land in the inbox — and we have done it for teams of every size, from two-person startups to agencies with dozens of client lists. See https://example.com/case-study and https://example.com/pricing.\n\nI think we could really help. We would love to show you what our team has built. Our team is great!!\n\nBest,\nAsh',
+    body: '{Hi|Hey} {{frist_name}},\n\n{Hope this finds you well.|Hope your week is going well.} {{icebreaker}}.\n\nWe help teams like {{company}} book more meetings with outbound that is guaranteed to land in the inbox — and we have done it for teams of every size, from two-person startups to agencies with dozens of client lists. See https://example.com/case-study and https://example.com/pricing.\n\nI think we could really help. We would love to show you what our team has built. Our team is great!!\n\nBest,\nAsh',
   },
   { subject: '', body: 'Hi {{first_name}},\n\nJust following up on my last note. Did you get a chance to look?\n\nAsh' },
   { subject: '', body: "Hi {{first_name}},\n\nLast one from me. If outbound isn't a focus at {{company}} right now, no worries. Worth a quick chat next month?\n\nAsh" },
