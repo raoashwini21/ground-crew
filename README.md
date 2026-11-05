@@ -63,7 +63,7 @@ One file, about 1.7 MB, with all the art, fonts and sounds inside.
 |---|---|
 | **00 Check-in** | Drop in a CSV from Apollo, Clay, Sales Navigator or any sheet. Ground Crew guesses which column is which, and you confirm. |
 | **01 Baggage Claim** | Fixes messy fields, merges twins, and holds rows that can't be emailed. Every fix shows what it was before. |
-| **02 Control Tower** | Each email step is a flight strip. The tower radios in as you type: broken tags, blanks with no fallback, spammy words, long sentences. Spintax is understood, and every version is checked. |
+| **02 Control Tower** | Each email step is a flight strip. The tower radios in as you type: broken tags, blanks with no fallback, spammy words, long sentences. |
 | **03 Boarding Gate** | Security Check fills in every step for every lead and scans the finished email. Any Mayday holds that lead. |
 | **04 Take-off** | Download the clean leads, the held leads with reasons, and a log of every change. Nothing is sent. |
 
@@ -126,10 +126,6 @@ Prefer a lighter touch? Switch the tower to **Gentle**, and it only radios Mayda
 - `Brightwave Pvt Ltd` → `Brightwave`
 - `VP Sales | Ex-Google | Speaker` → `VP Sales`
 - Same email or same LinkedIn profile → merged into one lead
-
-**Spintax, every version**
-- `{Hi|Hey|Hello} {{first_name}}` is read as three versions, and the tower checks tags and wording in every one
-- Each lead's boarding pass shows the exact version that lead would get
 
 **Sent to Lost & Found**
 - No first name, or junk like `Test`, `N/A`, `J.`
