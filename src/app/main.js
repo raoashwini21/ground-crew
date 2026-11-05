@@ -478,7 +478,9 @@ function beltLane(m) {
   const twinIds = new Set(m.twins.map(t => t.keepId));
   const items = [];
   const rest = m.leads.filter(l => !twinIds.has(l.id));
-  for (let i = 0; i < 5 && i < rest.length; i++) items.push({ lead: rest[Math.floor(i * rest.length / 5)], kind: '' });
+  // Each bag at most once: a short list shows only the bags it has.
+  const n = Math.min(5, rest.length);
+  for (let i = 0; i < n; i++) items.push({ lead: rest[Math.floor(i * rest.length / n)], kind: '' });
   m.leads.filter(l => twinIds.has(l.id)).slice(0, 1).forEach(l => items.splice(1, 0, { lead: l, kind: 'twin' }));
   m.lostFound.slice(0, 1).forEach(x => items.splice(4, 0, { lead: x.lead, kind: 'lost' }));
   const dur = 30;
@@ -1037,24 +1039,23 @@ function fixPanel(r) {
   return box;
 }
 
-// Real cleared passengers walk to the gate, tagged with their company.
+// Real cleared passengers walk past the agent and board, once each, so you
+// never see more people than actually boarded. Up to four stand in for a
+// big list. Their first name rides on their bag as a luggage tag.
 function walkers(g) {
   const m = state.manifest;
   const cleared = g.results.filter(r => r.status === 'cleared');
-  const dur = 12;
-  const people = [1, 2, 3, 4].map((n, i) => {
-    const r = cleared[Math.floor(i * cleared.length / 4)];
+  const count = Math.min(4, cleared.length);
+  const people = Array.from({ length: count }, (_, i) => {
+    const r = cleared[Math.floor(i * cleared.length / count)];
     const el = h('div', { class: 'walker' },
-      h('img', { src: ART(`passenger-${n}`), alt: '' }),
-      // Company, not first name: the figures are fixed art, and a name could
-      // put a woman's name on a man's figure or the other way round.
-      // The name rides on the passenger's bag as a luggage tag, so it fits any passenger.
-      r ? h('span', { class: 'tag', title: 'Boarded' }, r.lead.cells[m.map.first_name] || `Seat ${r.lead.row}`) : null);
-    el.style.setProperty('--dur', `${dur}s`);
-    el.style.setProperty('--delay', `${-(i / 4) * dur}s`);
+      h('img', { src: ART(`passenger-${(i % 4) + 1}`), alt: '' }),
+      h('span', { class: 'tag', title: 'Boarded' }, r.lead.cells[m.map.first_name] || `Seat ${r.lead.row}`));
+    el.style.setProperty('--dur', '9s');
+    el.style.setProperty('--delay', `${0.4 + i * 2.2}s`);
     return el;
   });
-  return h('div', { class: 'walkers', 'aria-hidden': 'true' }, cleared.length ? people : []);
+  return h('div', { class: 'walkers', 'aria-hidden': 'true' }, people);
 }
 
 function boardingPass(r) {
