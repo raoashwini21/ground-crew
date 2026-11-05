@@ -428,6 +428,9 @@ button.radio { cursor: pointer; font: 500 12px/1 var(--mono); }
 .whyoff .why p { margin: 0; color: var(--muted); font-size: 15px; }
 .whyoff .wicon { display: inline-grid; place-items: center; width: 38px; height: 38px; border-radius: 10px; background: #fff6d6; font-size: 20px; }
 
+.pass .sys, .xray .mail .sys { background: #e8eef5; color: #4a5b72; border-radius: 3px; padding: 0 3px; font: 600 12px/1 var(--mono); }
+.radiolog .rhead.spin { color: #ffd36b; }
+
 /* Fixes */
 .starter { background: #fff6d6; border: 1px solid #f0d77a; border-radius: 12px; padding: 12px 16px; margin: 0 0 16px; }
 .starter .btn { margin-left: 6px; }

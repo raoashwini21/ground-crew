@@ -4,6 +4,7 @@
 import {
   parseCSV, guessColumns, FIELDS, FIELD_LABELS, buildManifest, checkCampaignChunked,
   towerCheck, PRESETS, boardedCSV, heldCSV, changesCSV, tagFor, compile,
+  variant, spinInfo,
 } from '../engine/index.js';
 import { makeSkyline, SEQUENCE_PLANTED } from '../engine/skyline.js';
 import { resolveTag, nearestHeader } from '../engine/template.js';
@@ -698,13 +699,15 @@ function towerLeg(step, i) {
     const t = towerCheck(step, i, { manifest: state.manifest, enabled: PRESETS[state.preset] });
     const kind = t.calls.some(c => c.kind === 'mayday') ? 'mayday' : t.clear ? 'clear' : 'turbulence';
     band.className = 'band ' + kind;
-    log.replaceChildren(
+    log.replaceChildren(...[
       h('div', { class: 'gauge' }, gauge(t.score, kind),
-        h('div', null, h('div', { class: 'lbl' }, 'ALTIMETER'), h('div', { class: 'val' }, t.score), h('div', { class: 'lbl' }, `${plural(t.words, 'WORD')}`))),
+        h('div', null, h('div', { class: 'lbl' }, 'ALTIMETER'), h('div', { class: 'val' }, t.score), h('div', { class: 'lbl' }, `${t.words} ${t.words === 1 ? 'WORD' : 'WORDS'}`))),
+      t.spin.groups ? h('div', { class: 'rhead spin' }, `↻ SPINTAX · ${t.spin.groups} ${t.spin.groups === 1 ? 'GROUP' : 'GROUPS'} · ${fmt(t.spin.versions)} ${t.spin.versions === 1 ? 'VERSION' : 'VERSIONS'} · EVERY ONE CHECKED`) : null,
       h('div', { class: 'rhead' }, icon('radio'), `TOWER · LEG ${i + 1}`),
       h('ul', null, t.calls.length
         ? t.calls.map(c => h('li', { class: c.kind }, h('span', { class: 'who' }, c.kind === 'mayday' ? 'MAYDAY ▸' : 'TWR ▸'), h('span', null, c.line)))
-        : h('li', { class: 'clear' }, h('span', { class: 'who' }, 'TWR ▸'), h('span', null, 'Clear skies. Roger that.'))));
+        : h('li', { class: 'clear' }, h('span', { class: 'who' }, 'TWR ▸'), h('span', null, 'Clear skies. Roger that.'))),
+    ].filter(Boolean));
   };
   const schedule = () => {
     state.gateStale = true;
@@ -828,11 +831,14 @@ function xrayMonitor(m, total) {
   return { el, count, to, mail, verdict, laneList, bar, total };
 }
 
+// The version of a spun email this lead gets: the same pick the gate checked.
 function renderMail(stepIndex, lead, xray) {
   const s = state.steps[stepIndex];
+  const subject = variant(s.subject || '', `${lead.id}:${stepIndex}:s`);
+  const body = variant(s.body || '', `${lead.id}:${stepIndex}:b`);
   return [
-    s.subject && s.subject.trim() ? h('div', { class: 'subj' }, marked(s.subject, lead, xray)) : null,
-    marked(s.body, lead, xray),
+    subject.trim() ? h('div', { class: 'subj' }, marked(subject, lead, xray)) : null,
+    marked(body, lead, xray),
   ].filter(Boolean);
 }
 
@@ -1120,6 +1126,7 @@ function marked(text, lead, xray) {
   const out = document.createDocumentFragment();
   for (const p of c.parts) {
     if ('text' in p) { out.append(p.text); continue; }
+    if (p.system) { out.append(h('span', { class: 'sys', title: 'Filled in by your sending tool' }, p.raw)); continue; }
     if (p.col === -1) { out.append(h('span', { class: 'gap', title: 'Not a column in your list' }, p.raw)); continue; }
     const v = String(lead.cells[p.col] ?? '').trim();
     if (v) out.append(xray ? h('span', { class: 'val' }, v) : v);

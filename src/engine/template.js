@@ -19,6 +19,14 @@ const FIELD_ALIASES = {
   website: ['website', 'domain', 'companywebsite'],
 };
 
+// Variables your sending tool fills in itself: never a column, never a problem.
+const SYSTEM = new Set(['signature', 'mysignature', 'accountsignature', 'unsubscribe', 'unsubscribelink', 'unsubscribeurl',
+  'optout', 'optoutlink', 'myname', 'myfirstname', 'mylastname', 'mycompany', 'myemail', 'dayofweek', 'timeofday', 'today']);
+export function isSystemTag(tag) {
+  const k = squash(tag);
+  return k.startsWith('sender') || SYSTEM.has(k);
+}
+
 export function resolveTag(tag, headers, map) {
   const key = squash(tag);
   if (!key) return -1;
@@ -50,6 +58,7 @@ export function compile(text, headers, map) {
       col,
       field: col === -1 ? null : fieldOfColumn(col, map),
       fallback: m[2] === undefined ? null : m[2],
+      system: col === -1 && isSystemTag(m[1]),
     };
     parts.push(slot);
     tags.push(slot);
@@ -58,7 +67,7 @@ export function compile(text, headers, map) {
   if (last < src.length) parts.push({ text: src.slice(last) });
 
   // Tags that didn't open or close properly: "{{first_name}", "{first_name}".
-  // Braces almost never belong in a cold email, so any stray one is reported.
+  // Spintax is resolved before this runs, so any brace left is a stray one.
   const broken = [];
   for (const p of parts) {
     if (!('text' in p)) continue;
@@ -81,7 +90,7 @@ export function fill(compiled, cells) {
     if ('text' in p) { out += p.text; continue; }
     if (p.col === -1) {
       out += p.raw;
-      used.push({ slot: p, value: null, unknown: true });
+      used.push({ slot: p, value: null, unknown: !p.system, system: p.system });
       continue;
     }
     const value = String(cells[p.col] ?? '').trim();

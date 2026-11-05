@@ -255,3 +255,64 @@ test('a header-only file has nobody to board and nothing breaks', () => {
   assert.equal(g.counts.leads, 0);
   assert.equal(g.counts.emails, 0);
 });
+
+import { variant, spinInfo, unionText, hasSpintax } from '../src/engine/spintax.js';
+
+const HER_COPY = `{Hi|Hey} {{first_name}},
+{You find the perfect candidate on LinkedIn. You're not connected. Now what?|Quick question. When the perfect candidate isn't a connection, what do you do?}
+{Most recruiters either spend an InMail and hope, or move on to someone easier.|For most firms it's an InMail and a prayer, or you give up and move on.}
+{It reaches people outside your network.|It can reach people you aren't connected to.}
+{Should I send it over?|Want me to send over how it works?}
+%sender-firstname%
+SalesRobot`;
+
+test('spintax is not a broken tag, and every version is counted', () => {
+  assert.ok(hasSpintax(HER_COPY));
+  assert.deepEqual(spinInfo(HER_COPY), { groups: 5, versions: 32 });
+  const t = towerCheck({ subject: '', body: HER_COPY }, 0, { manifest });
+  assert.ok(!t.calls.some(c => c.rule === 'broken_tag' || c.rule === 'unknown_tag'), JSON.stringify(t.calls));
+  assert.equal(t.spin.versions, 32);
+  const g = checkCampaign(manifest, [{ subject: '{quick question|a thought}, {{first_name}}', body: HER_COPY }]);
+  assert.ok(!g.reasons.some(r => r.kind === 'broken_tag' || r.kind === 'unknown_tag'), JSON.stringify(g.reasons.map(r => r.key)));
+});
+
+test('a fallback with a pipe is still a fallback, not spintax', () => {
+  assert.equal(hasSpintax('Hi {{first_name|there}}'), false);
+  assert.equal(variant('Saw {{company|your team}} {is|was} hiring', 'x').includes('{{company|your team}}'), true);
+});
+
+test('nested spintax and tags inside options', () => {
+  const text = '{Hi {{first_name}}|Hey {there|you}}!';
+  const seen = new Set();
+  for (let i = 0; i < 60; i++) seen.add(variant(text, 'lead' + i));
+  assert.deepEqual([...seen].sort(), ['Hey there!', 'Hey you!', 'Hi {{first_name}}!']);
+  assert.equal(variant(text, 'same'), variant(text, 'same'));
+  assert.match(unionText(text), /\{\{first_name\}\}/);
+});
+
+test('a real broken brace is still caught next to spintax', () => {
+  const g = checkCampaign(manifest, [{ subject: '', body: '{Hi|Hey {{first_name}}, worth a chat?' }]);
+  assert.ok(g.reasons.some(r => r.kind === 'broken_tag'));
+});
+
+test('a blank tag in any version of a spun step holds the lead', () => {
+  const g = checkCampaign(manifest, [{ subject: '', body: '{Hi {{first_name}}, saw {{company}} is hiring.|Hi {{first_name}}, quick one.} Worth a chat?' }]);
+  for (const p of planted('missing_company')) {
+    const r = g.results.find(x => x.lead.row === p.row);
+    assert.equal(r.status, 'held', `row ${p.row}`);
+  }
+});
+
+test('sender variables are filled by the sending tool, never flagged', () => {
+  const g = checkCampaign(manifest, [{ subject: '', body: 'Hi {{first_name}}, worth a chat?\n\n{{sender_name}}\n{{signature}}\n{{unsubscribe}}' }]);
+  assert.ok(!g.reasons.some(r => r.kind === 'unknown_tag'), JSON.stringify(g.reasons.map(r => r.key)));
+  const t = towerCheck({ subject: '', body: 'Hi {{first_name}}, worth a chat?\n\n{{sender_first_name}}' }, 0, { manifest });
+  assert.ok(!t.calls.some(c => c.rule === 'unknown_tag'));
+});
+
+test('tower: an ask above a signature block with an address still counts', () => {
+  const t = towerCheck({ subject: 'hi', body: 'Hi {{first_name}},\nWe help with lists.\n{Should I send it over?|Want me to send it?}\n%sender-firstname%\nSalesRobot\nSuite 651 N Broad St, Middletown, Delaware, 19709' }, 0, { manifest });
+  assert.ok(!t.calls.some(c => c.rule === 'no_ask'), JSON.stringify(t.calls));
+  const t2 = towerCheck({ subject: 'hi', body: 'Hi {{first_name}},\nWe help with lists.\n%sender-firstname%\nSuite 651 N Broad St, Middletown, Delaware' }, 0, { manifest });
+  assert.ok(t2.calls.some(c => c.rule === 'no_ask'));
+});

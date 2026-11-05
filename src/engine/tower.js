@@ -3,6 +3,7 @@
 // not a prediction of replies or deliverability.
 
 import { compile, nearestHeader, tagFor } from './template.js';
+import { unionText, firstVariant, spinInfo } from './spintax.js';
 
 const SPAM = ['free', 'guarantee', 'guaranteed', 'act now', 'risk-free', 'risk free', 'click here', 'limited time', 'no obligation', '100%', 'winner', 'urgent', 'buy now', 'special offer', 'cash'];
 const CLICHES = ['hope this finds you well', 'hope you are well', "hope you're well", 'synergy', 'synergies', 'game-changing', 'game changer', 'game-changer', 'circle back', 'touch base', 'quick call', 'pick your brain', 'revolutionary', 'cutting-edge', 'best-in-class', 'world-class', 'leverage'];
@@ -39,17 +40,24 @@ export function towerCheck(step, index, { manifest = null, enabled = PRESETS.ope
   const on = new Set(enabled);
   const calls = [];
   const add = (rule, line, where = '') => { if (on.has(rule)) calls.push({ rule, kind: RULES.find(r => r.id === rule).kind, line, where }); };
-  const subject = String(step.subject || '');
-  const body = String(step.body || '');
+  // Spintax: tags and wording are checked across every option; length and
+  // structure are measured on one version, the way a reader gets it.
+  const subject = firstVariant(step.subject || '');
+  const body = firstVariant(step.body || '');
+  const anySubject = unionText(step.subject || '');
+  const anyBody = unionText(step.body || '');
+  const si = spinInfo(step.subject || ''), bi = spinInfo(step.body || '');
+  const spin = { groups: si.groups + bi.groups, versions: si.versions * bi.versions };
   const isFirst = index === 0;
 
   if (manifest) {
     const seen = new Set();
-    for (const part of [subject, body]) {
+    for (const part of [anySubject, anyBody]) {
       const c = compile(part, manifest.headers, manifest.map);
       for (const t of c.tags) {
         if (seen.has(t.raw)) continue;
         seen.add(t.raw);
+        if (t.system) continue; // filled in by the sending tool
         if (t.col === -1) {
           const near = nearestHeader(t.name, manifest.headers);
           add('unknown_tag', `{{${t.name}}} isn't in your list.${near ? ` Did you mean ${tagFor(near)}?` : ''}`);
@@ -66,6 +74,7 @@ export function towerCheck(step, index, { manifest = null, enabled = PRESETS.ope
   // Strip tags so they don't count as words or trip the word checks.
   const plain = body.replace(/\{\{[^{}]*\}\}/g, 'X');
   const plainSubject = subject.replace(/\{\{[^{}]*\}\}/g, 'X');
+  const anyPlain = (anySubject + ' ' + anyBody).replace(/\{\{[^{}]*\}\}/g, 'X');
 
   const n = wordList(plain).length;
   if (n > 100) add('long_body', `Reduce altitude: ${n} words. Aim under 100 for a phone.`);
@@ -84,14 +93,18 @@ export function towerCheck(step, index, { manifest = null, enabled = PRESETS.ope
 
   const lines = sentences(plain);
   // Ignore the sign-off ("Best,", "Ash") when looking for the ask.
-  const bodyLines = plain.split('\n').map(x => x.trim()).filter(Boolean);
+  let bodyLines = plain.split('\n').map(x => x.trim()).filter(Boolean);
+  // A signature block (sender variable or "Best,") and everything under it,
+  // like a company address, is not where the ask lives.
+  const sig = bodyLines.findIndex((x, i) => i > 0 && (/%sender[\w-]*%|\{\{\s*sender/i.test(x) || /^(best|thanks|thank you|cheers|regards|kind regards|warmly|sincerely|talk soon)\b[,!.]?\s*$/i.test(x)));
+  if (sig > 0) bodyLines = bodyLines.slice(0, sig);
   while (bodyLines.length > 1 && wordList(bodyLines[bodyLines.length - 1]).length <= 3 && !/\?/.test(bodyLines[bodyLines.length - 1])) bodyLines.pop();
   const tail = sentences(bodyLines.join('\n')).slice(-2).join(' ');
   if (plain.trim() && !/\?/.test(tail) && !/\b(let me know|worth a|open to|interested|reply|thoughts)\b/i.test(tail)) {
     add('no_ask', 'No ask on approach. End with one easy question.');
   }
 
-  const spamHit = SPAM.find(w => hasPhrase(plain + ' ' + plainSubject, w));
+  const spamHit = SPAM.find(w => hasPhrase(anyPlain, w));
   if (spamHit) add('spam', `"${cap(spamHit)}" looks spammy to inboxes.`);
 
   const links = (plain.match(/https?:\/\/\S+|www\.\S+/gi) || []).length;
@@ -99,7 +112,7 @@ export function towerCheck(step, index, { manifest = null, enabled = PRESETS.ope
     add('links', isFirst ? 'Links on the first touch. Keep email 1 link-free.' : `${links} links. Keep it to one.`);
   }
 
-  const cliche = CLICHES.find(w => hasPhrase(plain, w));
+  const cliche = CLICHES.find(w => hasPhrase(anyPlain, w));
   if (cliche) add('cliche', `"${cap(cliche)}" on the radar. Say it plainly.`);
 
   const long = lines.find(s => wordList(s).length > 25);
@@ -107,14 +120,14 @@ export function towerCheck(step, index, { manifest = null, enabled = PRESETS.ope
 
   if ((plain.match(/!/g) || []).length > 1) add('exclaim', 'Easy on the exclamation marks.');
 
-  if (!isFirst && WEAK_FOLLOWUP.some(w => hasPhrase(plain, w))) add('weak_followup', 'Weak follow-up. Bring something new.');
+  if (!isFirst && WEAK_FOLLOWUP.some(w => hasPhrase(anyPlain, w))) add('weak_followup', 'Weak follow-up. Bring something new.');
 
-  if (/—/.test(body + subject)) add('em_dash', 'Em dash spotted. Use a full stop.');
+  if (/—/.test(anyBody + anySubject)) add('em_dash', 'Em dash spotted. Use a full stop.');
 
   const maydays = calls.filter(c => c.kind === 'mayday').length;
   const turb = calls.length - maydays;
   const score = Math.max(0, 100 - maydays * 25 - turb * 8);
-  return { calls, score, clear: maydays === 0 && score >= 85, words: n };
+  return { calls, score, clear: maydays === 0 && score >= 85, words: n, spin };
 }
 
 const cap = s => s[0].toUpperCase() + s.slice(1);

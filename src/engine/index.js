@@ -5,3 +5,4 @@ export { compile, fill, tagFor } from './template.js';
 export { checkCampaign, checkCampaignChunked } from './gate.js';
 export { towerCheck, RULES, PRESETS } from './tower.js';
 export { boardedCSV, heldCSV, changesCSV } from './export.js';
+export { hasSpintax, variant, spinInfo, unionText } from './spintax.js';

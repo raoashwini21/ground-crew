@@ -3,6 +3,7 @@
 // is checked. Any Mayday holds the lead; turbulence boards but is listed.
 
 import { compile, fill, nearestHeader, tagFor } from './template.js';
+import { hasSpintax, unionText, variant } from './spintax.js';
 import { LEGAL_END } from './clean.js';
 
 const SENTENCE_SPLIT = /((?<=[.!?])\s+)/;
@@ -28,7 +29,21 @@ export function compileStep(step, headers, map) {
 
 function* checkIter(manifest, steps, chunk = 250) {
   const { headers, map, leads } = manifest;
-  const compiled = steps.map(s => compileStep(s, headers, map));
+  // Every option of every {a|b} side by side: what template checks look at.
+  const compiled = steps.map(s => compileStep({ subject: unionText(s.subject), body: unionText(s.body) }, headers, map));
+  // Each lead gets one version of a spun step, the same one every time.
+  const spun = steps.map(s => hasSpintax(s.subject) || hasSpintax(s.body));
+  const versionCache = steps.map(() => new Map());
+  const versionFor = (si, lead) => {
+    if (!spun[si]) return compiled[si];
+    const s = steps[si];
+    const subject = variant(s.subject, `${lead.id}:${si}:s`);
+    const body = variant(s.body, `${lead.id}:${si}:b`);
+    const key = subject + '\u0000' + body;
+    let c = versionCache[si].get(key);
+    if (!c) { c = compileStep({ subject, body }, headers, map); versionCache[si].set(key, c); }
+    return c;
+  };
 
   // Template-level problems hit every lead the same way; work them out once.
   const templateIssues = [];
@@ -37,7 +52,7 @@ function* checkIter(manifest, steps, chunk = 250) {
     const seenUnknown = new Set();
     for (const part of all) {
       for (const t of part.tags) {
-        if (t.col !== -1 || seenUnknown.has(t.name)) continue;
+        if (t.col !== -1 || t.system || seenUnknown.has(t.name)) continue;
         seenUnknown.add(t.name);
         const near = nearestHeader(t.name, headers);
         templateIssues.push({
@@ -83,8 +98,9 @@ function* checkIter(manifest, steps, chunk = 250) {
     const issues = templateIssues.slice();
     const rendered = [];
 
-    compiled.forEach((c, si) => {
+    compiled.forEach((all, si) => {
       const step = si + 1;
+      const c = versionFor(si, lead);
       const subj = fill(c.subject, lead.cells);
       const bodyParts = [];
       const used = [...subj.used.map(u => ({ ...u, where: 'subject', text: subj.text }))];
@@ -134,6 +150,23 @@ function* checkIter(manifest, steps, chunk = 250) {
         }
       }
 
+      // A tag in another version of this step could be the one that gets sent.
+      if (spun[si]) {
+        const flagged = new Set(used.filter(u => u.empty).map(u => u.slot.name));
+        for (const part of [all.subject, ...all.body.filter(b => b.parts)]) {
+          for (const t of part.tags) {
+            if (t.col === -1 || t.fallback !== null || flagged.has(t.name)) continue;
+            if (String(lead.cells[t.col] ?? '').trim()) continue;
+            flagged.add(t.name);
+            issues.push({
+              kind: 'empty_tag', level: 'mayday', step, key: `empty_tag:${t.name}`,
+              label: `{{${t.name}}} is blank, with no fallback`,
+              hint: `Fill it in, or add a fallback like {{${t.name}|there}}.`,
+              detail: 'Blank in another version of this spun email',
+            });
+          }
+        }
+      }
       if (c.hasSubject && subj.used.some(u => u.value) && subj.text.length > 60 && c.subjectTemplateLen <= 60) {
         issues.push({ kind: 'long_subject', level: 'turbulence', step, key: 'long_subject', label: 'Subject runs over 60 characters once filled in', detail: `"${clip(subj.text, 80)}"` });
       }
