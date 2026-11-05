@@ -426,18 +426,29 @@ function viewBaggage() {
   });
   const holder = h('div', null, baggageTable(m, changesByLead, fixedLeads));
   const lost = state.baggageTab === 'lost';
+  const emptyFile = m.stats.rows === 0;
+  const allLost = !emptyFile && m.leads.length === 0;
 
   return [
     stage('baggage', 1, {
       focus: 0.9,
       inFrame: [beltLane(m)],
-      over: [crew(lost ? 'handler-alert' : 'handler-ok', 'right full pop'),
-        say('BAGGAGE HANDLER', lost
-          ? [h('b', null, `${plural(m.stats.lostFound, 'bag')} with no name tag. `), 'They stay in Lost & Found, each with its reason.']
-          : ['Bags are off the plane! ', h('b', null, `${plural(m.stats.twinsMerged, 'twin')} merged, ${plural(m.stats.fixes, 'tag')} fixed.`)],
+      over: [crew(lost || emptyFile || allLost ? 'handler-alert' : 'handler-ok', 'right full pop'),
+        say('BAGGAGE HANDLER', emptyFile
+          ? [h('b', null, 'The belt’s empty! '), 'This file has column headers but no leads in it.']
+          : allLost
+            ? [h('b', null, 'Every bag is missing its name tag. '), 'They’re all in Lost & Found.']
+            : lost
+              ? [h('b', null, `${plural(m.stats.lostFound, 'bag')} with no name tag. `), 'They stay in Lost & Found, each with its reason.']
+              : ['Bags are off the plane! ', h('b', null, `${plural(m.stats.twinsMerged, 'twin')} merged, ${plural(m.stats.fixes, 'tag')} fixed.`)],
         { right: '24cqw', bottom: '60%' })],
     }),
     noteBanner(),
+    emptyFile ? h('div', { class: 'starter' }, h('b', null, 'There’s no one to check in this file. '), 'It has column headers but no rows. Load a list with leads in it.', ' ',
+      h('button', { class: 'btn small', onclick: () => go('checkin') }, 'Back to Check-in')) : null,
+    allLost ? h('div', { class: 'starter' }, h('b', null, 'Nobody can board yet. '), 'Every row is missing a usable first name or email. Fill them in under Lost & Found, or load a different list.', ' ',
+      h('button', { class: 'btn small', onclick: () => { state.baggageTab = 'lost'; render(); } }, 'Open Lost & Found'),
+      ' ', h('button', { class: 'btn small', onclick: () => go('checkin') }, 'Back to Check-in')) : null,
     h('p', { class: 'lede' }, 'The list comes in messy and leaves clean. Every fix shows what it was before. Your original file is never touched.'),
     h('div', { class: 'tags' },
       ltag(m.stats.rows, 'checked in'),
@@ -612,6 +623,8 @@ function viewTower() {
 
   return [
     stage('tower', 2, { focus: 0.55, over: [img, bubble] }),
+    !m.leads.length ? h('div', { class: 'starter' }, h('b', null, 'No passengers on this flight yet. '), 'You can write your emails here, but there’s no one to check them against.', ' ',
+      h('button', { class: 'btn small', onclick: () => go(m.stats.rows ? 'baggage' : 'checkin') }, m.stats.rows ? 'Open Baggage Claim' : 'Back to Check-in')) : null,
     state.starter ? h('div', { class: 'starter' }, h('b', null, '✏️ Paste your own emails below. '), 'Right now there’s only a starter email in leg 1. Replace it with your real subject and body, and add your follow-ups. Use tags like {{first_name}} and {{company}} where the lead’s details go.') : null,
     h('p', { class: 'lede' }, 'Each step of your sequence is a flight strip. The tower radios in as you type. The altimeter is a writing guide, not a promise of replies.'),
     h('div', { class: 'card' },
