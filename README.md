@@ -19,7 +19,7 @@ On your laptop. With the Wi-Fi off.
 
 > Built for Hackyard Yard #6 · theme: **Offline**
 >
-> 🎬 Demo video: *coming soon*
+> 🎬 [Watch the demo](https://vimeo.com/1243826647)
 
 ---
 
