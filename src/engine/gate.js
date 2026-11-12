@@ -2,7 +2,7 @@
 // for every lead, exactly as the inbox would see it, and the finished text
 // is checked. Any Mayday holds the lead; turbulence boards but is listed.
 
-import { compile, fill, nearestHeader, tagFor } from './template.js';
+import { compile, fill, nearestHeader, tagFor, PLACEHOLDER } from './template.js';
 import { hasSpintax, unionText, variant } from './spintax.js';
 import { LEGAL_END } from './clean.js';
 
@@ -126,7 +126,7 @@ function* checkIter(manifest, steps, chunk = 250) {
         if (u.empty) {
           issues.push({
             kind: 'empty_tag', level: 'mayday', step, key: `empty_tag:${u.slot.name}`,
-            label: `${tag} is blank, with no fallback`,
+            label: u.placeholder ? `${tag} says "${u.placeholder}", not real data` : `${tag} is blank, with no fallback`,
             hint: `Fill it in, or add a fallback like {{${u.slot.name}|there}}.`,
             detail: gapSnippet(u.text, u),
           });
@@ -156,7 +156,8 @@ function* checkIter(manifest, steps, chunk = 250) {
         for (const part of [all.subject, ...all.body.filter(b => b.parts)]) {
           for (const t of part.tags) {
             if (t.col === -1 || t.fallback !== null || flagged.has(t.name)) continue;
-            if (String(lead.cells[t.col] ?? '').trim()) continue;
+            const v = String(lead.cells[t.col] ?? '').trim();
+            if (v && !PLACEHOLDER.test(v)) continue;
             flagged.add(t.name);
             issues.push({
               kind: 'empty_tag', level: 'mayday', step, key: `empty_tag:${t.name}`,

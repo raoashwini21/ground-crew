@@ -82,6 +82,10 @@ export function compile(text, headers, map) {
   return { parts, tags, broken };
 }
 
+// Values a spreadsheet or an export leaves behind when there's no real data.
+// "Loved what null is doing" is as broken as a blank, just quieter.
+export const PLACEHOLDER = /^(null|nil|none|nan|undefined|n\/a|#n\/a|#value!|#ref!|#name\?|\[object object\]|\{\{[^{}]*\}\})$/i;
+
 // Fill one compiled template for one lead. Returns the text and what went in.
 export function fill(compiled, cells) {
   let out = '';
@@ -93,15 +97,19 @@ export function fill(compiled, cells) {
       used.push({ slot: p, value: null, unknown: !p.system, system: p.system });
       continue;
     }
-    const value = String(cells[p.col] ?? '').trim();
+    const raw = String(cells[p.col] ?? '').trim();
+    const junk = PLACEHOLDER.test(raw) ? raw : '';
+    const value = junk ? '' : raw;
     if (value) {
       out += value;
       used.push({ slot: p, value });
     } else if (p.fallback !== null) {
       out += p.fallback;
-      used.push({ slot: p, value: p.fallback, fellBack: true });
+      used.push({ slot: p, value: p.fallback, fellBack: true, placeholder: junk || undefined });
     } else {
-      used.push({ slot: p, value: '', empty: true, at: out.length });
+      // A placeholder still goes out as typed, so the preview shows it.
+      used.push({ slot: p, value: '', empty: true, at: out.length, placeholder: junk || undefined });
+      out += junk;
     }
   }
   return { text: out, used };

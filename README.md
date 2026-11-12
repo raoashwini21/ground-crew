@@ -98,6 +98,7 @@ Everything you type is logged in `changes.csv` as *edited by you*.
 **Held at the gate (Mayday)**
 - A tag that isn't a column: `{{frist_name}}` → *Did you mean `{{first_name}}`?*
 - A tag that comes out blank, with no fallback: `Hi ,`
+- A tag that fills with junk instead of data: `null`, `NaN`, `undefined`, `#N/A` (a fallback covers these too)
 - Broken braces: `{first_name}}`
 - Names still in capitals: `Hi JOHN`
 
@@ -195,7 +196,7 @@ In the page, a 50,000-row file loads in about 1.3 s and is scanned in about 2 s,
 
 ```bash
 npm install
-npm test        # 41 tests: every planted problem caught, look-alikes left alone
+npm test        # 42 tests: every planted problem caught, look-alikes left alone
 npm run build   # → dist/Ground Crew.html
 npm run skyline # → data/skyline-leads.csv
 ```

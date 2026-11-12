@@ -2,7 +2,7 @@
 // filled in. Each rule has a radio line. The score is a writing heuristic,
 // not a prediction of replies or deliverability.
 
-import { compile, nearestHeader, tagFor } from './template.js';
+import { compile, nearestHeader, tagFor, PLACEHOLDER } from './template.js';
 import { unionText, firstVariant, spinInfo } from './spintax.js';
 
 const SPAM = ['free', 'guarantee', 'guaranteed', 'act now', 'risk-free', 'risk free', 'click here', 'limited time', 'no obligation', '100%', 'winner', 'urgent', 'buy now', 'special offer', 'cash'];
@@ -63,7 +63,7 @@ export function towerCheck(step, index, { manifest = null, enabled = PRESETS.ope
           add('unknown_tag', `{{${t.name}}} isn't in your list.${near ? ` Did you mean ${tagFor(near)}?` : ''}`);
         }
         else if (t.fallback === null) {
-          const blanks = manifest.leads.filter(l => !String(l.cells[t.col] ?? '').trim()).length;
+          const blanks = manifest.leads.filter(l => { const v = String(l.cells[t.col] ?? '').trim(); return !v || PLACEHOLDER.test(v); }).length;
           if (blanks) add('blank_tag', `${fmtN(blanks)} lead${blanks === 1 ? ' has' : 's have'} no ${t.name}. Add a fallback, like {{${t.name}|your team}}.`);
         }
       }

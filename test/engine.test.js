@@ -76,6 +76,17 @@ test('twins that only differ in capitals or a blank are not flagged', () => {
   assert.deepEqual(m.twins[0].conflicts, []);
 });
 
+test('placeholder values like null and NaN are held, and a fallback rescues them', () => {
+  const p = parseCSV('First Name,Email,Company\nMaya,maya@a.io,null\nAva,ava@c.io,NaN\nRaj,raj@d.io,Acme\nIvy,ivy@e.io,#N/A\n');
+  const m = buildManifest(p, guessColumns(p.headers));
+  const held = checkCampaign(m, [{ subject: 'Hi', body: 'Hi {{first_name}}, loved what {{company}} is doing. Worth a chat?' }]);
+  assert.deepEqual(held.results.map(r => r.status), ['held', 'held', 'cleared', 'held']);
+  assert.match(held.results[0].issues[0].label, /says "null"/);
+  const saved = checkCampaign(m, [{ subject: 'Hi', body: 'Hi {{first_name}}, loved what {{company|your team}} is doing. Worth a chat?' }]);
+  assert.ok(saved.results.every(r => r.status === 'cleared'));
+  assert.match(saved.results[1].rendered[0].body, /your team/);
+});
+
 test('look-alikes and nicknames are NOT merged (different emails)', () => {
   for (const kind of ['lookalike', 'nickname']) {
     for (const p of planted(kind)) assert.ok(!mergedRows.has(p.row), `${kind} row ${p.row} must not merge`);
