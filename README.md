@@ -126,6 +126,7 @@ Prefer a lighter touch? Switch the tower to **Gentle**, and it only radios Mayda
 - `Brightwave Pvt Ltd` → `Brightwave`
 - `VP Sales | Ex-Google | Speaker` → `VP Sales`
 - Same email or same LinkedIn profile → merged into one lead
+- Twins that disagree (same email, two different companies) are flagged to check, with one click to pick the right value
 
 **Sent to Lost & Found**
 - No first name, or junk like `Test`, `N/A`, `J.`
@@ -194,7 +195,7 @@ In the page, a 50,000-row file loads in about 1.3 s and is scanned in about 2 s,
 
 ```bash
 npm install
-npm test        # 39 tests: every planted problem caught, look-alikes left alone
+npm test        # 41 tests: every planted problem caught, look-alikes left alone
 npm run build   # → dist/Ground Crew.html
 npm run skyline # → data/skyline-leads.csv
 ```

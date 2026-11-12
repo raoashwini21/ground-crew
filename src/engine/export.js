@@ -27,6 +27,7 @@ export function changesCSV(manifest) {
   const rows = manifest.changes.map(c => [c.row, c.column, c.before, c.after, c.why]);
   for (const t of manifest.twins) {
     for (const r of t.mergedRows) rows.push([r, '(whole row)', `row ${r}`, `merged into row ${t.keepRow}`, t.why]);
+    for (const c of t.conflicts) rows.push([c.row, c.column, c.other, c.kept, `twin disagreed: kept row ${t.keepRow}'s value. Check which is right`]);
   }
   rows.sort((a, b) => a[0] - b[0]);
   return toCSV(headers, rows);

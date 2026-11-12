@@ -98,6 +98,11 @@ export function makeSkyline(n = 3000, seed = 2026) {
         case 'dup_email': {
           plant(kind, p, 'kept');
           const twin = { ...p, Title: '', City: '', 'LinkedIn URL': '' };
+          // A few changed jobs: same email, a different company on the second row.
+          if (k < 4) {
+            const at = companies.findIndex(c => c.name === p.Company);
+            twin.Company = companies[(at + 7 + k) % companies.length].name;
+          }
           plant(kind, twin, 'merged');
           break;
         }

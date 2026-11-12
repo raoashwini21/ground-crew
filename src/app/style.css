@@ -448,3 +448,9 @@ td input.cell { width: 170px; padding: 5px 8px; border-color: #e6b400; backgroun
 /* ---------- Calm mode ---------- */
 body.calm *, body.calm *::before, body.calm *::after { animation: none !important; transition: none !important; }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+
+/* Twins that disagree */
+tr.conflict td { background: #fff7e0; }
+tr.conflict:not(.clashrow) td { border-bottom: none; }
+tr.clashrow td { white-space: normal; max-width: none; padding-top: 0; }
+.clash { font-size: 14px; line-height: 1.6; }

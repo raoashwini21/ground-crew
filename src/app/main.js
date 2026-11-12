@@ -440,7 +440,7 @@ function viewBaggage() {
   const tabs = [
     ['boarding', `Manifest ${fmt(m.leads.length)}`],
     ['fixed', `Fixed ${fmt(m.changes.length)}`],
-    ['twins', `Twins ${fmt(m.twins.length)}`],
+    ['twins', m.stats.twinConflicts ? `Twins ${fmt(m.twins.length)} · ⚠ ${fmt(m.stats.twinConflicts)} to check` : `Twins ${fmt(m.twins.length)}`],
     ['lost', `Lost & Found ${fmt(m.lostFound.length)}`],
   ];
   const search = h('input', {
@@ -463,7 +463,8 @@ function viewBaggage() {
             ? [h('b', null, 'Every bag is missing its name tag. '), 'They’re all in Lost & Found.']
             : lost
               ? [h('b', null, `${plural(m.stats.lostFound, 'bag')} with no name tag. `), 'They stay in Lost & Found, each with its reason.']
-              : ['Bags are off the plane! ', h('b', null, `${plural(m.stats.twinsMerged, 'twin')} merged, ${plural(m.stats.fixes, 'tag')} fixed.`)],
+              : ['Bags are off the plane! ', h('b', null, `${plural(m.stats.twinsMerged, 'twin')} merged, ${plural(m.stats.fixes, 'tag')} fixed.`),
+                m.stats.twinConflicts ? ` ${plural(m.stats.twinConflicts, 'pair')} of twins don’t match, so check those.` : ''],
         { right: '24cqw', bottom: '60%' })],
     }),
     noteBanner(),
@@ -547,18 +548,34 @@ function baggageTable(m, changesByLead, fixedLeads) {
         h('td', { class: 'muted' }, c.why)))))), more(list.length));
   }
   if (tab === 'twins') {
-    const rows = m.twins.filter(t => matches(leadById.get(t.keepId)?.cells || []));
+    // Twins that disagree (same email, two companies) come first: they need a look.
+    const rows = m.twins.filter(t => matches(leadById.get(t.keepId)?.cells || []))
+      .sort((a, b) => (b.conflicts.length ? 1 : 0) - (a.conflicts.length ? 1 : 0));
     if (!rows.length) return h('div', { class: 'empty' }, 'No twins in this list.');
-    return h('div', null, h('div', { class: 'tablewrap' }, h('table', null,
+    const n = m.stats.twinConflicts;
+    // Picking a value is an edit on top of the original rows, like Lost & Found.
+    const pick = (id, col, value) => { if (!editable(col)) return; addEdits([{ id, col, value }]); sfx.stamp(); render(); };
+    const clash = (t, c) => h('div', { class: 'clash' },
+      h('span', null, h('b', null, `${c.column}: `), `row ${t.keepRow} says “${c.kept}”, row ${c.row} says “${c.other}”.`), ' ',
+      h('button', { class: 'btn small', title: `Use “${c.kept}” for this person`, onclick: () => pick(c.otherId, c.col, c.kept) }, `Keep “${c.kept}”`), ' ',
+      h('button', { class: 'btn small', title: `Use “${c.other}” for this person`, onclick: () => pick(t.keepId, c.col, c.other) }, `Use “${c.other}”`));
+    return h('div', null,
+      n ? h('div', { class: 'starter' }, h('b', null, `${plural(n, 'twin')} ${n === 1 ? 'disagrees' : 'disagree'}. `),
+        'Same email or profile, but the rows don’t match. Usually a job change or old data. The first row’s value is kept until you pick.') : null,
+      h('div', { class: 'tablewrap' }, h('table', null,
       h('thead', null, h('tr', null, h('th', null, 'Kept row'), h('th', null, 'Passenger'), h('th', null, 'Email'), h('th', null, 'Merged rows'), h('th', null, 'Why'))),
-      h('tbody', null, rows.slice(0, state.shown).map(t => {
+      h('tbody', null, rows.slice(0, state.shown).flatMap(t => {
         const l = leadById.get(t.keepId);
-        return h('tr', null,
+        const row = h('tr', { class: t.conflicts.length ? 'conflict' : '' },
           h('td', { class: 'rownum' }, t.keepRow),
           h('td', null, nameOf(m, l)),
           h('td', null, l.cells[m.map.email] || ''),
           h('td', { class: 'mono' }, t.mergedRows.join(', ')),
-          h('td', null, t.why));
+          h('td', null, t.conflicts.length ? [h('span', { class: 'pill turbulence' }, 'CHECK'), ' ', t.why] : t.why));
+        // The clash gets its own full-width line, so nothing is cut off.
+        return t.conflicts.length
+          ? [row, h('tr', { class: 'conflict clashrow' }, h('td', { colspan: 5 }, t.conflicts.map(c => clash(t, c))))]
+          : [row];
       })))), more(rows.length));
   }
   if (tab === 'lost') {

@@ -55,6 +55,27 @@ test('Priya with different capitals is still one person', () => {
   assert.ok(t && t.mergedRows.includes(rows[1]));
 });
 
+test('twins that disagree on company are merged but flagged', () => {
+  const flagged = manifest.twins.filter(t => t.conflicts.length);
+  assert.equal(flagged.length, 4);
+  for (const t of flagged) {
+    const c = t.conflicts[0];
+    assert.equal(c.column, 'Company');
+    assert.notEqual(c.kept, c.other);
+    assert.ok(t.mergedRows.includes(c.row));
+  }
+  assert.equal(manifest.stats.twinConflicts, 4);
+  const csv = changesCSV(manifest);
+  assert.equal((csv.match(/twin disagreed/g) || []).length, 4);
+});
+
+test('twins that only differ in capitals or a blank are not flagged', () => {
+  const p = parseCSV('First Name,Email,Company,Website\nAna,ana@x.io,ACME,https://www.acme.io/\nana,ANA@x.io,Acme,acme.io\nAna,ana@x.io,,acme.io\n');
+  const m = buildManifest(p, guessColumns(p.headers));
+  assert.equal(m.twins.length, 1);
+  assert.deepEqual(m.twins[0].conflicts, []);
+});
+
 test('look-alikes and nicknames are NOT merged (different emails)', () => {
   for (const kind of ['lookalike', 'nickname']) {
     for (const p of planted(kind)) assert.ok(!mergedRows.has(p.row), `${kind} row ${p.row} must not merge`);

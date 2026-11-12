@@ -8,6 +8,19 @@ import {
   nameProblem, emailProblem, isRoleAddress, linkedinKey, splitFullName,
 } from './clean.js';
 
+// Fields where two rows of the same person should agree. Email and
+// LinkedIn are how twins are found, so they aren't compared here.
+const CONFLICT_FIELDS = ['first_name', 'last_name', 'company', 'title', 'website'];
+
+function sameValue(field, a, b) {
+  const norm = v => {
+    let x = tidySpaces(v).toLowerCase();
+    if (field === 'website') x = x.replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/\/+$/, '');
+    return x;
+  };
+  return norm(a) === norm(b);
+}
+
 export function buildManifest(parsed, map) {
   const headers = parsed.headers.slice();
   const columnMap = { ...map };
@@ -110,12 +123,27 @@ export function buildManifest(parsed, map) {
       if (donor) log(keep, col, keep.cells[col] ?? '', donor.cells[col], `filled from its twin on row ${donor.row}`);
     }
     keep.twinRows = others.map(o => o.row);
+    // Same email or profile, but the rows disagree (a job change, stale
+    // data). The kept row's value stays; the clash is flagged to check.
+    const conflicts = [];
+    for (const f of CONFLICT_FIELDS) {
+      if (!(f in columnMap)) continue;
+      const col = columnMap[f];
+      const mine = keep.cells[col] ?? '';
+      for (const o of others) {
+        const theirs = o.cells[col] ?? '';
+        if (tidySpaces(mine) && tidySpaces(theirs) && sameValue(f, mine, theirs) === false) {
+          conflicts.push({ field: f, column: headers[col], col, kept: mine, other: theirs, row: o.row, otherId: o.id });
+        }
+      }
+    }
     twins.push({
       keepId: keep.id,
       keepRow: keep.row,
       mergedRows: others.map(o => o.row),
       mergedIds: others.map(o => o.id),
       why: others.map(o => reason.get(o.id) || 'same email').filter((v, i, a) => a.indexOf(v) === i).join(' and '),
+      conflicts,
     });
   }
   kept.sort((a, b) => a.id - b.id);
@@ -150,6 +178,7 @@ export function buildManifest(parsed, map) {
       boarding: boarding.length,
       lostFound: lostFound.length,
       twinsMerged: twins.reduce((n, t) => n + t.mergedRows.length, 0),
+      twinConflicts: twins.filter(t => t.conflicts.length).length,
       fixes: changes.filter(c => !c.why.startsWith('filled from')).length,
       roleAddresses: boarding.filter(l => l.role).length,
     },
